@@ -1,0 +1,27 @@
+# Whitelist voor ToetsLocker AP
+# Één domein per regel — subdomains worden automatisch meegenomen
+# Commentaar begint met #
+
+# Apple captive portal (vereist voor iOS-verbinding)
+apple.com
+captive.apple.com
+
+# Windows captive portal
+www.msftconnecttest.com
+
+# itsLearning
+graafschapcollege.itslearning.com
+cdn.itslearning.com
+filerepository.itslearning.com
+proxy.itslearning.com
+filecache.itslearning.com
+eu1-filerepo-1436663729.eu-central-1.elb.amazonaws.com
+eu1.itslearning.com
+platform.itslearning.com
+
+# Microsoft authenticatie (SSO via itsLearning)
+login.microsoftonline.com
+login.mso.msidentity.com
+aadcdn.msauth.net
+aadcdn.msauthimages.net
+autologon.microsoftazuread-sso.com
