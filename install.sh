@@ -71,10 +71,15 @@ cat > /etc/hostapd/hostapd.conf << EOF
 interface=${AP_IFACE}
 driver=nl80211
 ssid=${SSID}
-hw_mode=g
-channel=6
+hw_mode=a
+channel=36
 ieee80211n=1
+ieee80211ac=1
 wmm_enabled=1
+ht_capab=[HT40+][SHORT-GI-40][DSSS_CCK-40]
+vht_capab=[MAX-MPDU-11454][SHORT-GI-80][RX-STBC-1][HTC-VHT][MAX-A-MPDU-LEN-EXP7]
+vht_oper_chwidth=1
+vht_oper_centr_freq_seg0_idx=42
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
@@ -346,6 +351,7 @@ else
         nginx:alpine
     ok "Container 'toetslocker' gestart (nginx placeholder)"
 fi
+sleep 20
 
 # =============================================================================
 # EINDCONTROLE
