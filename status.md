@@ -98,10 +98,13 @@ Poort 22 stond initieel niet open voor wlan1. Dat betekent: geen SSH via het Toe
 dnsmasq luistert alleen op `wlan1` (`bind-interfaces`), dus de Pi zelf gebruikt dnsmasq niet. `toetslocker.lan` moet daarom in `/etc/hosts` staan. Het installatiescript verwijdert altijd de oude regel en schrijft `192.168.50.1 toetslocker.lan toetslocker` opnieuw.
 
 ### Docker FORWARD-regel
-De nftables FORWARD chain heeft policy drop. Docker container op docker0 is alleen bereikbaar als er expliciet een regel staat:
+De nftables FORWARD chain heeft policy drop. Docker doet DNAT voor poort 80 (host-IP → container), waarna het pakket door de FORWARD chain gaat. Er moeten expliciete regels staan voor elke interface die de container moet bereiken:
 ```
 iifname "wlan1" oifname "docker0" tcp dport { 80, 8080 } accept
+iifname "wlan0" oifname "docker0" tcp dport { 80, 8080 } accept
 ```
+De wlan0-regel is nodig zodat beheerders op het schoolnetwerk de container kunnen bereiken via het wlan0-IP van de Pi. `toetslocker.lan` werkt niet via wlan0 (dnsmasq luistert alleen op wlan1) — gebruik het wlan0-IP direct.
+
 Gebruik `{ 80, 8080 }` omdat Docker's DNAT het pakket herschrijft naar de **container-poort** vóórdat onze FORWARD-chain het ziet. nginx gebruikt container-poort 80, aspnetapp gebruikt 8080 — de FORWARD-regel moet op de container-poort matchen, niet op de host-poort.
 
 ---
