@@ -1,5 +1,5 @@
 # Raspberry Pi 5 — Setup Commandos
-# Bijgewerkt: 2026-05-04
+# Bijgewerkt: 2026-05-29
 
 ---
 
@@ -444,3 +444,20 @@ sudo tail -f /var/log/dnsmasq.log | grep query
 
 # Huidige whitelisted IPs in nftables:
 sudo nft list set inet filter allowed_ips
+
+---
+
+## Herinstallatie op verse Pi (via install.sh)
+
+Bovenstaande stappen 1–15 zijn verwerkt in `install.sh`. Op een nieuwe Pi:
+
+```bash
+# Kopieer script naar de Pi (vanuit Windows):
+scp C:\Claude\pi-install\install.sh mwieggers@<pi-ip>:~/
+
+# Voer uit op de Pi:
+chmod +x install.sh
+sudo ./install.sh
+```
+
+Het script vraagt interactief om SSID, wachtwoord en landcode.
