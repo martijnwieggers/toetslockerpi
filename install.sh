@@ -159,8 +159,6 @@ dhcp-option=option:domain-search,lan
 
 domain-needed
 bogus-priv
-log-queries
-log-facility=/var/log/dnsmasq.log
 EOF
 
 systemctl daemon-reload
