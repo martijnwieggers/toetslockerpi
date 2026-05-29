@@ -134,7 +134,9 @@ Huidig in whitelist.txt:
 
 | Bestand | Beschrijving |
 |---------|-------------|
-| `ssh-key-beheer.sh` | SSH key aanmaken en beheren voor Git koppeling |
+| `ssh-key-beheer.sh` | SSH key aanmaken, tonen en verwijderen voor Git koppeling; configureert automatisch `~/.ssh/config` voor GitHub |
+| `logging_on.sh` | Dnsmasq query-logging inschakelen |
+| `logging_off.sh` | Dnsmasq query-logging uitschakelen |
 
 ---
 
@@ -146,7 +148,7 @@ Huidig in whitelist.txt:
 - [ ] WPA3 toevoegen aan hostapd.conf (indien USB adapter dat ondersteunt)
 - [ ] HTTPS captive portal pagina bouwen (nu plain nginx placeholder)
 - [x] Logging inrichten: `log-queries` + `log-facility=/var/log/dnsmasq.log` actief in ap.conf
-- [ ] SSH key aanmaken op Pi en koppelen aan GitHub (script: ssh-key-beheer.sh)
+- [x] SSH key beheer script klaar (ssh-key-beheer.sh): aanmaken, tonen, verwijderen + automatische GitHub SSH config
 
 ---
 

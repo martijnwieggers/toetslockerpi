@@ -456,13 +456,20 @@ scp C:\Claude\pi-install\ssh-key-beheer.sh mwieggers@<pi-ip>:~/
 # Uitvoerbaar maken en starten:
 chmod +x ssh-key-beheer.sh
 ./ssh-key-beheer.sh
-# Kies 1 → naam opgeven → public key verschijnt → kopieer naar GitHub
+# Kies 1 → naam opgeven (bijv. 'raspberry-pi')
+#   → sleutelpaar aangemaakt in ~/.ssh/
+#   → ~/.ssh/config automatisch ingesteld voor github.com
+#   → public key verschijnt → kopieer naar GitHub
+#
+# Kies 2 → lijst van bestaande keys
+# Kies 3 → public key opnieuw tonen (voor GitHub)
+# Kies 4 → key verwijderen op naam (verwijdert sleutelpaar + GitHub SSH config)
 
 # Git instellen:
 git config --global user.name "Martijn Wieggers"
 git config --global user.email "ma.wieggers@graafschapcollege.nl"
 
-# Testen:
+# Verbinding testen (na toevoegen public key aan GitHub):
 ssh -T git@github.com
 ```
 

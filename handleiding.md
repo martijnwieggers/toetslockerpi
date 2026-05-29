@@ -132,14 +132,20 @@ chmod +x ssh-key-beheer.sh
 ```
 
 Het menu biedt:
-- **1** — Nieuwe SSH key aanmaken (vraagt om naam, toont direct de public key)
+- **1** — Nieuwe SSH key aanmaken (vraagt om naam, genereert sleutelpaar, configureert `~/.ssh/config` voor GitHub, toont direct de public key)
 - **2** — Lijst van bestaande keys tonen
 - **3** — Public key opnieuw tonen
+- **4** — SSH key verwijderen (verwijdert sleutelpaar én GitHub-config)
 
 **Public key toevoegen aan GitHub:**
 1. Kopieer de public key die het script toont
 2. Ga naar GitHub → Settings → SSH and GPG keys → New SSH key
 3. Plak de sleutel en sla op
+
+**Verbinding testen:**
+```bash
+ssh -T git@github.com
+```
 
 **Git instellen op de Pi:**
 ```bash
