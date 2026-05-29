@@ -130,6 +130,14 @@ Huidig in whitelist.txt:
 
 ---
 
+## Lokale scripts
+
+| Bestand | Beschrijving |
+|---------|-------------|
+| `ssh-key-beheer.sh` | SSH key aanmaken en beheren voor Git koppeling |
+
+---
+
 ## Volgende stappen (optioneel)
 
 - [x] Eigen Docker-applicatie deployen ter vervanging van nginx:alpine (aspnetapp)
@@ -138,6 +146,7 @@ Huidig in whitelist.txt:
 - [ ] WPA3 toevoegen aan hostapd.conf (indien USB adapter dat ondersteunt)
 - [ ] HTTPS captive portal pagina bouwen (nu plain nginx placeholder)
 - [x] Logging inrichten: `log-queries` + `log-facility=/var/log/dnsmasq.log` actief in ap.conf
+- [ ] SSH key aanmaken op Pi en koppelen aan GitHub (script: ssh-key-beheer.sh)
 
 ---
 
