@@ -2,12 +2,6 @@
 # Één domein per regel — subdomains worden automatisch meegenomen
 # Commentaar begint met #
 
-# Apple captive portal (vereist voor iOS-verbinding)
-apple.com
-captive.apple.com
-
-# Windows captive portal
-www.msftconnecttest.com
 
 # itsLearning
 graafschapcollege.itslearning.com
@@ -25,3 +19,50 @@ login.mso.msidentity.com
 aadcdn.msauth.net
 aadcdn.msauthimages.net
 autologon.microsoftazuread-sso.com
+mysignins.microsoft.com
+
+# Microsoft / Windows
+www.msftconnecttest.com
+www.msftncsi.com
+dns.msftncsi.com
+
+# Apple
+captive.apple.com
+www.apple.com
+
+# Google / Android / ChromeOS
+clients3.google.com
+connectivitycheck.gstatic.com
+connectivitycheck.android.com
+
+# GNOME / NetworkManager / Linux
+nmcheck.gnome.org
+
+# Ubuntu
+connectivity-check.ubuntu.com
+
+# KDE Plasma
+networkcheck.kde.org
+
+# Mozilla / Firefox
+detectportal.firefox.com
+
+# Amazon
+kindle-wifi.amazon.com
+
+# Huawei
+connectivitycheck.platform.hicloud.com
+
+# Xiaomi / MIUI
+connect.rom.miui.com
+
+# Cisco / Meraki
+wired.meraki.com
+n143.network-auth.com
+
+# Aruba Networks
+arubanetworks.com
+
+# Test / helper sites
+neverssl.com
+example.com

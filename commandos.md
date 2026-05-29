@@ -67,10 +67,11 @@ sudo systemctl enable wlan1-setup.service
 
 sudo mkdir -p /etc/hostapd
 
+# Pas ssid, wpa_passphrase en country_code aan naar de waarden die tijdens de installatie zijn ingegeven
 sudo tee /etc/hostapd/hostapd.conf > /dev/null << 'EOF'
 interface=wlan1
 driver=nl80211
-ssid=ToetsLocker
+ssid=<ssid>
 hw_mode=g
 channel=6
 ieee80211n=1
@@ -78,11 +79,11 @@ wmm_enabled=1
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
-wpa_passphrase=Welkom2024!
+wpa_passphrase=<wachtwoord>
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=CCMP
 rsn_pairwise=CCMP
-country_code=NL
+country_code=<landcode>
 EOF
 
 sudo sed -i 's|^#\?DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
@@ -263,7 +264,7 @@ EOF
 
 sudo systemctl restart nftables
 sudo systemctl restart docker
-sudo docker start toetslocker 2>/dev/null; true
+sudo docker start wifi-manager 2>/dev/null; true
 
 ---
 
@@ -272,7 +273,7 @@ sudo docker start toetslocker 2>/dev/null; true
 sudo sed -i '/^server=8\.8\.8\.8/d; /^server=1\.1\.1\.1/d' /etc/dnsmasq.d/ap.conf
 
 sudo tee /etc/whitelist.txt > /dev/null << 'EOF'
-# Whitelist voor ToetsLocker AP
+# Whitelist voor AP
 example.com
 EOF
 
@@ -307,7 +308,7 @@ sudo /usr/local/bin/update-whitelist.sh
 sudo apt install -y docker.io
 sudo systemctl enable docker
 sudo systemctl start docker
-sudo usermod -aG docker mwieggers
+sudo usermod -aG docker <gebruiker>
 sudo docker run --rm hello-world
 
 ---
@@ -370,7 +371,7 @@ sudo /usr/local/bin/update-whitelist.sh
 ## Stap 13 — Whitelist uitbreiden (itsLearning + Microsoft SSO)
 
 sudo tee /etc/whitelist.txt > /dev/null << 'EOF'
-# Whitelist voor ToetsLocker AP
+# Whitelist voor AP
 # Één domein per regel — subdomains worden automatisch meegenomen
 # Commentaar begint met #
 
@@ -460,7 +461,7 @@ docker-compose version
 
 ```bash
 # Script kopiëren naar de Pi (vanuit Windows):
-scp C:\Claude\pi-install\ssh-key-beheer.sh mwieggers@<pi-ip>:~/
+scp C:\Claude\pi-install\ssh-key-beheer.sh <gebruiker>@<pi-ip>:~/
 
 # Uitvoerbaar maken en starten:
 chmod +x ssh-key-beheer.sh
@@ -475,8 +476,8 @@ chmod +x ssh-key-beheer.sh
 # Kies 4 → key verwijderen op naam (verwijdert sleutelpaar + GitHub SSH config)
 
 # Git instellen:
-git config --global user.name "Martijn Wieggers"
-git config --global user.email "ma.wieggers@graafschapcollege.nl"
+git config --global user.name "<naam>"
+git config --global user.email "<email>"
 
 # Verbinding testen (na toevoegen public key aan GitHub):
 ssh -T git@github.com
@@ -489,14 +490,16 @@ ssh -T git@github.com
 ```bash
 git clone git@github.com:<gebruiker>/<repository>.git
 cd <repository>
-docker-compose up -d
+sudo docker-compose build --no-cache
+sudo docker-compose up -d
 
 # Controleren:
-docker-compose ps
+sudo docker-compose ps
 
 # Bijwerken na wijziging:
 git pull
-docker-compose up -d --build
+sudo docker-compose build --no-cache
+sudo docker-compose up -d
 ```
 
 ---
@@ -507,7 +510,7 @@ Bovenstaande stappen 1–15 zijn verwerkt in `install.sh`. Op een nieuwe Pi:
 
 ```bash
 # Kopieer script naar de Pi (vanuit Windows):
-scp C:\Claude\pi-install\install.sh mwieggers@<pi-ip>:~/
+scp C:\Claude\pi-install\install.sh <gebruiker>@<pi-ip>:~/
 
 # Voer uit op de Pi:
 chmod +x install.sh

@@ -17,7 +17,7 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 |-----------|--------|
 | Apparaat | Raspberry Pi 5 |
 | OS | Raspberry Pi OS Lite (Debian Trixie) |
-| Gebruiker | mwieggers |
+| Gebruiker | <gebruiker> |
 | Internet uplink | wlan0 (ingebouwde WiFi) |
 | AP interface | wlan1 (USB WiFi adapter) |
 
@@ -92,7 +92,7 @@ dnsmasq 2.91+ ondersteunt `nftset=/<domain>/4#inet#filter#allowed_ips`. Bij elke
 iOS gebruikt mDNS (Bonjour) voor `.local` domeinen — dat gaat buiten de gewone DNS om. Daardoor werkte `toetslocker.local` niet via dnsmasq. Opgelost met `.lan` + `domain=lan` + `dhcp-option=option:domain-search,lan` in dnsmasq.
 
 ### SSH alleen bereikbaar via wlan0 (standaard)
-Poort 22 stond initieel niet open voor wlan1. Dat betekent: geen SSH via het ToetsLocker-netwerk, alleen via het uplink-netwerk (wlan0). Opgelost door `iifname "wlan1" tcp dport 22 accept` toe te voegen aan de INPUT-chain in nftables.conf.
+Poort 22 stond initieel niet open voor wlan1. Dat betekent: geen SSH via het AP-netwerk, alleen via het uplink-netwerk (wlan0). Opgelost door `iifname "wlan1" tcp dport 22 accept` toe te voegen aan de INPUT-chain in nftables.conf.
 
 ### toetslocker.lan werkt niet lokaal op de Pi zelf
 dnsmasq luistert alleen op `wlan1` (`bind-interfaces`), dus de Pi zelf gebruikt dnsmasq niet. `toetslocker.lan` moet daarom in `/etc/hosts` staan. Het installatiescript verwijdert altijd de oude regel en schrijft `192.168.50.1 toetslocker.lan toetslocker` opnieuw.
@@ -157,7 +157,7 @@ Huidig in whitelist.txt:
 
 ```bash
 # Script kopiëren naar Pi (vanuit Windows):
-scp C:\Claude\pi-install\install.sh mwieggers@<pi-ip>:~/
+scp C:\Claude\pi-install\install.sh <gebruiker>@<pi-ip>:~/
 
 # Op de Pi uitvoeren:
 chmod +x install.sh
