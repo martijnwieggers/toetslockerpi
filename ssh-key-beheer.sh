@@ -59,14 +59,37 @@ create_key() {
     chmod 600 "$keyfile"
     chmod 644 "${keyfile}.pub"
 
+    # ~/.ssh/config bijwerken zodat GitHub de juiste key gebruikt
+    local sshconfig="$SSH_DIR/config"
+    if grep -q "^Host github.com" "$sshconfig" 2>/dev/null; then
+        # Bestaand github.com blok vervangen
+        sed -i '/^Host github\.com/,/^$/d' "$sshconfig"
+        warn "Bestaande GitHub SSH config vervangen."
+    fi
+    cat >> "$sshconfig" << EOF
+
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ${keyfile}
+EOF
+    chmod 600 "$sshconfig"
+
     echo ""
     ok "Key aangemaakt: ${keyfile}"
+    ok "SSH config bijgewerkt: github.com gebruikt deze key"
     echo ""
-    ok "Public key (kopieer naar GitHub):"
+    echo "================================================================"
+    ok "Public key — kopieer dit naar GitHub:"
+    echo "================================================================"
     echo ""
     cat "${keyfile}.pub"
     echo ""
+    echo "================================================================"
     info "GitHub → Settings → SSH and GPG keys → New SSH key → plak bovenstaande sleutel"
+    echo ""
+    info "Verbinding testen na toevoegen aan GitHub:"
+    info "  ssh -T git@github.com"
     echo ""
 }
 
