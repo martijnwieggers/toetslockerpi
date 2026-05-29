@@ -105,7 +105,8 @@ docker run -d --name toetslocker --restart unless-stopped -p 80:8080 <image>
 scp C:\Claude\pi-install\install.sh mwieggers@<pi-ip>:~/
 
 # Voer uit op de Pi:
-sudo bash install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 Het script vraagt interactief om SSID, wachtwoord en landcode.
