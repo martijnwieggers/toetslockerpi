@@ -29,6 +29,24 @@ http://192.168.50.1
 
 ---
 
+## Webapplicatie openen als beheerder (via schoolnetwerk / wlan0)
+
+Verbind je laptop met hetzelfde netwerk als de Pi (wlan0), en ga naar het wlan0-IP van de Pi:
+
+```bash
+# Wlan0-IP opzoeken op de Pi:
+ip addr show wlan0
+```
+
+Daarna in de browser:
+```
+http://<wlan0-ip>
+```
+
+> `toetslocker.lan` werkt niet via het wlan0-netwerk — dnsmasq luistert alleen op wlan1. Gebruik het IP-adres.
+
+---
+
 ## Nieuw WiFi-netwerk toevoegen (bijv. thuis)
 
 De Pi gebruikt wlan0 als internetverbinding. NetworkManager onthoudt alle bekende netwerken en schakelt automatisch over.
