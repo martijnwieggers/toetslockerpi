@@ -1,11 +1,13 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-05-04 (5)
+Bijgewerkt: 2026-05-29
 
 ---
 
 ## Status: VOLLEDIG WERKEND ✅
 
 Alle stappen zijn uitgevoerd en getest op de echte Pi. Het systeem werkt op iPhone én Windows.
+
+Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing ("container niet bereikbaar") opgelost door `sleep 20` toe te voegen na container start in `install.sh`.
 
 ---
 
