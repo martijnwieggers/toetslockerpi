@@ -227,6 +227,8 @@ table inet filter {
         iifname "${AP_IFACE}" oifname "${UPLINK_IFACE}" ip daddr @allowed_ips udp dport 443 accept
         # Studenten naar Docker container
         iifname "${AP_IFACE}" oifname "docker0" tcp dport { 80, 8080 } accept
+        # Beheerder via uplink-netwerk naar Docker container
+        iifname "${UPLINK_IFACE}" oifname "docker0" tcp dport { 80, 8080 } accept
     }
 
     chain output {
