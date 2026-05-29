@@ -93,6 +93,39 @@ EOF
     echo ""
 }
 
+delete_key() {
+    list_keys
+    read -rp "Naam van de te verwijderen key: " KEYNAME
+    [[ -z "$KEYNAME" ]] && { warn "Naam mag niet leeg zijn."; return; }
+
+    local keyfile="$SSH_DIR/${KEYNAME}"
+
+    if [[ ! -f "$keyfile" ]]; then
+        warn "Key '${KEYNAME}' niet gevonden."
+        return
+    fi
+
+    read -rp "Verwijder '${KEYNAME}'? Dit kan niet ongedaan worden. [j/N]: " CONFIRM
+    [[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; return; }
+
+    rm -f "${keyfile}" "${keyfile}.pub"
+    ok "Key '${KEYNAME}' verwijderd."
+
+    # Verwijder github.com blok uit ~/.ssh/config als het naar deze key verwijst
+    local sshconfig="$SSH_DIR/config"
+    if [[ -f "$sshconfig" ]] && grep -q "IdentityFile ${keyfile}" "$sshconfig"; then
+        awk '
+            /^Host github\.com$/ { skip=1 }
+            skip && /^Host / && !/^Host github\.com$/ { skip=0 }
+            !skip { print }
+        ' "$sshconfig" > "${sshconfig}.tmp" && mv "${sshconfig}.tmp" "$sshconfig"
+        chmod 600 "$sshconfig"
+        warn "GitHub SSH config verwijderd (was gekoppeld aan deze key)."
+    fi
+
+    echo ""
+}
+
 while true; do
     echo ""
     echo "============================================"
@@ -102,6 +135,7 @@ while true; do
     echo "  1) Nieuwe SSH key aanmaken"
     echo "  2) Lijst van SSH keys tonen"
     echo "  3) Public key tonen"
+    echo "  4) SSH key verwijderen"
     echo "  0) Afsluiten"
     echo ""
     read -rp "Keuze: " CHOICE
@@ -110,6 +144,7 @@ while true; do
         1) create_key ;;
         2) list_keys ;;
         3) show_public_key ;;
+        4) delete_key ;;
         0) info "Tot ziens."; exit 0 ;;
         *) warn "Ongeldige keuze." ;;
     esac
