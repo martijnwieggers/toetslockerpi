@@ -116,6 +116,39 @@ docker run -d --name toetslocker --restart unless-stopped -p 80:8080 <image>
 
 ---
 
+## Git koppeling instellen (SSH key)
+
+Gebruik het script `ssh-key-beheer.sh` om een SSH key aan te maken en toe te voegen aan GitHub.
+
+**Script kopiëren naar de Pi (vanuit Windows):**
+```bash
+scp C:\Claude\pi-install\ssh-key-beheer.sh mwieggers@<pi-ip>:~/
+```
+
+**Uitvoeren op de Pi:**
+```bash
+chmod +x ssh-key-beheer.sh
+./ssh-key-beheer.sh
+```
+
+Het menu biedt:
+- **1** — Nieuwe SSH key aanmaken (vraagt om naam, toont direct de public key)
+- **2** — Lijst van bestaande keys tonen
+- **3** — Public key opnieuw tonen
+
+**Public key toevoegen aan GitHub:**
+1. Kopieer de public key die het script toont
+2. Ga naar GitHub → Settings → SSH and GPG keys → New SSH key
+3. Plak de sleutel en sla op
+
+**Git instellen op de Pi:**
+```bash
+git config --global user.name "Martijn Wieggers"
+git config --global user.email "ma.wieggers@graafschapcollege.nl"
+```
+
+---
+
 ## Herinstallatie op verse Pi
 
 ```bash
