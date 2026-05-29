@@ -143,6 +143,7 @@ Huidig in whitelist.txt:
 ## Volgende stappen (optioneel)
 
 - [x] Eigen Docker-applicatie deployen ter vervanging van nginx:alpine (aspnetapp)
+- [x] docker-compose geïnstalleerd (`apt install docker-compose`)
 - [x] Schooldomeinen toevoegen aan `/etc/whitelist.txt` (itsLearning + Microsoft SSO)
 - [x] Reboot-test uitvoeren om te bevestigen dat alles automatisch start
 - [ ] WPA3 toevoegen aan hostapd.conf (indien USB adapter dat ondersteunt)

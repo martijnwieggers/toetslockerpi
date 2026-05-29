@@ -57,7 +57,7 @@ info "Stap 1: Packages installeren..."
 apt-get update -qq
 apt-get install -y -qq \
     curl wget git vim iw net-tools usbutils dnsutils tcpdump \
-    hostapd dnsmasq nftables docker.io
+    hostapd dnsmasq nftables docker.io docker-compose
 ok "Packages geïnstalleerd"
 
 # =============================================================================

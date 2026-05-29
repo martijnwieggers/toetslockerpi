@@ -447,7 +447,16 @@ sudo nft list set inet filter allowed_ips
 
 ---
 
-## Stap 16 — Git koppeling via SSH key
+## Stap 16 — Docker Compose installeren
+
+```bash
+sudo apt install docker-compose
+docker-compose version
+```
+
+---
+
+## Stap 17 — Git koppeling via SSH key
 
 ```bash
 # Script kopiëren naar de Pi (vanuit Windows):
@@ -471,6 +480,23 @@ git config --global user.email "ma.wieggers@graafschapcollege.nl"
 
 # Verbinding testen (na toevoegen public key aan GitHub):
 ssh -T git@github.com
+```
+
+---
+
+## Stap 18 — Docker Compose applicatie deployen via GitHub
+
+```bash
+git clone git@github.com:<gebruiker>/<repository>.git
+cd <repository>
+docker-compose up -d
+
+# Controleren:
+docker-compose ps
+
+# Bijwerken na wijziging:
+git pull
+docker-compose up -d --build
 ```
 
 ---

@@ -93,6 +93,34 @@ sudo systemctl status <servicenaam> --no-pager
 
 ---
 
+## Docker Compose gebruiken
+
+Kloon je repository op de Pi en start de applicatie:
+
+```bash
+git clone git@github.com:<gebruiker>/<repository>.git
+cd <repository>
+docker-compose up -d
+```
+
+**Stoppen:**
+```bash
+docker-compose down
+```
+
+**Logs bekijken:**
+```bash
+docker-compose logs -f
+```
+
+**Bijwerken na git pull:**
+```bash
+git pull
+docker-compose up -d --build
+```
+
+---
+
 ## Docker container beheren
 
 **Status bekijken:**
