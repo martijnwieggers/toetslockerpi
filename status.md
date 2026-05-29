@@ -145,7 +145,8 @@ Huidig in whitelist.txt:
 scp C:\Claude\pi-install\install.sh mwieggers@<pi-ip>:~/
 
 # Op de Pi uitvoeren:
-sudo bash install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 Het script vraagt interactief om SSID, wachtwoord en landcode.
