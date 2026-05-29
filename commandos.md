@@ -447,6 +447,27 @@ sudo nft list set inet filter allowed_ips
 
 ---
 
+## Stap 16 — Git koppeling via SSH key
+
+```bash
+# Script kopiëren naar de Pi (vanuit Windows):
+scp C:\Claude\pi-install\ssh-key-beheer.sh mwieggers@<pi-ip>:~/
+
+# Uitvoerbaar maken en starten:
+chmod +x ssh-key-beheer.sh
+./ssh-key-beheer.sh
+# Kies 1 → naam opgeven → public key verschijnt → kopieer naar GitHub
+
+# Git instellen:
+git config --global user.name "Martijn Wieggers"
+git config --global user.email "ma.wieggers@graafschapcollege.nl"
+
+# Testen:
+ssh -T git@github.com
+```
+
+---
+
 ## Herinstallatie op verse Pi (via install.sh)
 
 Bovenstaande stappen 1–15 zijn verwerkt in `install.sh`. Op een nieuwe Pi:
