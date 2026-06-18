@@ -67,6 +67,8 @@ info "Stap 2: hostapd configureren..."
 systemctl unmask hostapd
 
 mkdir -p /etc/hostapd
+
+# Profiel 1: generiek (RTL8812AU of vergelijkbaar)
 cat > /etc/hostapd/hostapd.conf << EOF
 interface=${AP_IFACE}
 driver=nl80211
@@ -90,11 +92,47 @@ rsn_pairwise=CCMP
 country_code=${COUNTRY}
 EOF
 
-sed -i 's|^#\?DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' \
+# Profiel 2: AWUS036AXML (MT7921U) — conservatievere VHT-caps, DFS-ondersteuning
+cat > /etc/hostapd/hostapd-mt7921u.conf << EOF
+interface=${AP_IFACE}
+driver=nl80211
+ssid=${SSID}
+hw_mode=a
+channel=36
+ieee80211n=1
+ieee80211ac=1
+wmm_enabled=1
+country_code=${COUNTRY}
+ieee80211d=1
+ieee80211h=1
+ht_capab=[HT40+][SHORT-GI-40]
+vht_capab=[SHORT-GI-80][RX-STBC-1]
+vht_oper_chwidth=1
+vht_oper_centr_freq_seg0_idx=42
+auth_algs=1
+ignore_broadcast_ssid=0
+wpa=2
+wpa_passphrase=${WIFI_PASS}
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=CCMP
+rsn_pairwise=CCMP
+EOF
+
+# Detecteer adapter via USB-ID en kies het bijpassende profiel
+# MT7921U (AWUS036AXML) = 0e8d:7961
+HOSTAPD_CONF="/etc/hostapd/hostapd.conf"
+if lsusb | grep -qi "0e8d:7961"; then
+    HOSTAPD_CONF="/etc/hostapd/hostapd-mt7921u.conf"
+    info "MT7921U (AWUS036AXML) gedetecteerd — hostapd-mt7921u.conf actief"
+else
+    info "Geen MT7921U gevonden — hostapd.conf actief (generiek profiel)"
+fi
+
+sed -i "s|^#\?DAEMON_CONF=.*|DAEMON_CONF=\"${HOSTAPD_CONF}\"|" \
     /etc/default/hostapd
 rfkill unblock all
 systemctl enable hostapd
-ok "hostapd geconfigureerd"
+ok "hostapd geconfigureerd (profiel: $(basename "${HOSTAPD_CONF}"))"
 
 # =============================================================================
 # STAP 3: NetworkManager — wlan1 unmanaged

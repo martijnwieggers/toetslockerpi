@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-05-29
+Bijgewerkt: 2026-06-18
 
 ---
 
@@ -19,7 +19,7 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 | OS | Raspberry Pi OS Lite (Debian Trixie) |
 | Gebruiker | <gebruiker> |
 | Internet uplink | wlan0 (ingebouwde WiFi) |
-| AP interface | wlan1 (USB WiFi adapter) |
+| AP interface | wlan1 (USB WiFi adapter — RTL8812AU of MT7921U) |
 
 ---
 
@@ -76,6 +76,33 @@ dnsmasq      active + enabled
 nftables     active + enabled
 docker       active + enabled
 wlan1-setup  active + enabled
+```
+
+---
+
+## hostapd-profielen
+
+Twee profielen worden altijd geïnstalleerd. Het installatiescript detecteert automatisch de adapter via USB-ID en kiest het juiste profiel.
+
+| Bestand | Adapter | Actief wanneer |
+|---------|---------|----------------|
+| `/etc/hostapd/hostapd.conf` | Generiek (RTL8812AU e.d.) | USB-ID `0e8d:7961` **niet** gevonden |
+| `/etc/hostapd/hostapd-mt7921u.conf` | AWUS036AXML (MT7921U) | USB-ID `0e8d:7961` gevonden |
+
+Detectie werkt via `lsusb | grep -qi "0e8d:7961"` in `install.sh`. Het actieve profiel staat in `/etc/default/hostapd` als `DAEMON_CONF=`.
+
+**Verschillen MT7921U-profiel t.o.v. generiek:**
+- `ieee80211d=1` + `ieee80211h=1` (regulatory domain + DFS-ondersteuning)
+- `ht_capab=[HT40+][SHORT-GI-40]` (zonder `DSSS_CCK-40`)
+- `vht_capab=[SHORT-GI-80][RX-STBC-1]` (conservatief; geen MAX-MPDU/HTC-VHT)
+
+**Handmatig wisselen van profiel:**
+```bash
+# Naar MT7921U-profiel:
+sed -i 's|hostapd.conf|hostapd-mt7921u.conf|' /etc/default/hostapd && systemctl restart hostapd
+
+# Terug naar generiek profiel:
+sed -i 's|hostapd-mt7921u.conf|hostapd.conf|' /etc/default/hostapd && systemctl restart hostapd
 ```
 
 ---
