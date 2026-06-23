@@ -257,10 +257,21 @@ delete table inet filter
 
 # Eigen NAT-tabel (prioriteit -150, vóór Docker's -100)
 table ip custom_nat {
+    # IPs van whitelisted domeinen — gevuld door dnsmasq, zelfde als allowed_ips.
+    # Gebruikt in prerouting om whitelisted HTTP-verkeer NIET te onderscheppen.
+    set captive_bypass {
+        type ipv4_addr
+        flags timeout
+        timeout 1h
+    }
+
     chain prerouting {
         type nat hook prerouting priority -150;
         iifname "${AP_IFACE}" udp dport 53 redirect to :53
         iifname "${AP_IFACE}" tcp dport 53 redirect to :53
+        # Captive portal: onderschep HTTP naar niet-whitelisted IPs → Pi
+        # Whitelisted IPs (in captive_bypass) gaan gewoon door
+        iifname "${AP_IFACE}" tcp dport 80 ip daddr != @captive_bypass redirect to :80
     }
     chain postrouting {
         type nat hook postrouting priority srcnat;
@@ -361,7 +372,7 @@ UPSTREAM=8.8.8.8
         [[ -z "$domain" || "$domain" =~ ^# ]] && continue
         domain="${domain#\*.}"
         echo "server=/${domain}/${UPSTREAM}"
-        echo "nftset=/${domain}/4#inet#filter#allowed_ips"
+        echo "nftset=/${domain}/4#inet#filter#allowed_ips,4#ip#custom_nat#captive_bypass"
     done < "$WHITELIST"
 } | tee "$OUTPUT" > /dev/null
 systemctl restart dnsmasq
@@ -392,6 +403,56 @@ fi
 systemctl daemon-reload
 systemctl enable docker
 ok "Docker geconfigureerd"
+
+# Nginx captive portal configuratie
+mkdir -p /etc/toetslocker
+
+cat > /etc/toetslocker/nginx.conf << 'NGINX'
+# Vang alle verzoeken op die niet voor toetslocker.lan zijn → redirect
+server {
+    listen 80 default_server;
+    server_name _;
+    return 302 http://toetslocker.lan/;
+}
+
+# Serveer de landingspagina voor toetslocker.lan
+server {
+    listen 80;
+    server_name toetslocker.lan;
+    root /usr/share/nginx/html;
+    index index.html;
+}
+NGINX
+
+cat > /etc/toetslocker/index.html << 'HTML'
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ToetsLocker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+               background: #f0f2f5; display: flex; align-items: center;
+               justify-content: center; min-height: 100vh; }
+        .card { background: white; border-radius: 12px; padding: 48px 40px;
+                max-width: 420px; width: 90%; text-align: center;
+                box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+        h1 { font-size: 2rem; color: #1a73e8; margin-bottom: 16px; }
+        p  { color: #555; line-height: 1.7; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>ToetsLocker</h1>
+        <p>Je bent verbonden met het toetsnetwerk.<br>
+           Gebruik de door je docent opgegeven applicatie.</p>
+    </div>
+</body>
+</html>
+HTML
+ok "Nginx captive portal configuratie aangemaakt (/etc/toetslocker/)"
 
 # /etc/hosts
 sed -i '/toetslocker/d' /etc/hosts
@@ -500,18 +561,16 @@ systemctl restart uplink-monitor
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
 
-# Docker container
-if docker ps -a --format '{{.Names}}' | grep -q "^toetslocker$"; then
-    docker start toetslocker 2>/dev/null || true
-    ok "Container 'toetslocker' herstart"
-else
-    docker run -d \
-        --name toetslocker \
-        --restart unless-stopped \
-        -p 80:80 \
-        nginx:alpine
-    ok "Container 'toetslocker' gestart (nginx placeholder)"
-fi
+# Docker container — altijd opnieuw aanmaken zodat volume-mounts kloppen
+docker rm -f toetslocker 2>/dev/null || true
+docker run -d \
+    --name toetslocker \
+    --restart unless-stopped \
+    -p 80:80 \
+    -v /etc/toetslocker/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
+    -v /etc/toetslocker/index.html:/usr/share/nginx/html/index.html:ro \
+    nginx:alpine
+ok "Container 'toetslocker' gestart (captive portal)"
 sleep 20
 
 # =============================================================================
@@ -537,10 +596,10 @@ DNS_OK=$(nslookup toetslocker.lan "${AP_IP}" 2>/dev/null | grep -c "${AP_IP}" ||
     && ok "DNS: toetslocker.lan → ${AP_IP}" \
     || { warn "DNS: toetslocker.lan resolveert niet"; ERRORS=$((ERRORS+1)); }
 
-HTTP_OK=$(curl -s --max-time 3 "http://${AP_IP}" | grep -c "nginx" || true)
+HTTP_OK=$(curl -sL --max-time 5 "http://toetslocker.lan" | grep -ci "toetslocker" || true)
 [[ "$HTTP_OK" -gt 0 ]] \
-    && ok "HTTP: container bereikbaar op poort 80" \
-    || { warn "HTTP: container niet bereikbaar"; ERRORS=$((ERRORS+1)); }
+    && ok "HTTP: captive portal bereikbaar (http://toetslocker.lan)" \
+    || { warn "HTTP: captive portal niet bereikbaar"; ERRORS=$((ERRORS+1)); }
 
 echo ""
 if [[ $ERRORS -eq 0 ]]; then
