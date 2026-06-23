@@ -26,7 +26,7 @@ read -rp  "WiFi netwerknaam (SSID) [ToetsLocker]: " SSID
 SSID=${SSID:-ToetsLocker}
 
 while true; do
-    read -rsp "WiFi wachtwoord (min. 8 tekens): " WIFI_PASS; echo ""
+    read -rp  "WiFi wachtwoord (min. 8 tekens): " WIFI_PASS
     [[ ${#WIFI_PASS} -ge 8 ]] && break
     warn "Minimaal 8 tekens vereist."
 done
@@ -35,8 +35,22 @@ read -rp "Landcode [NL]: " COUNTRY
 COUNTRY=${COUNTRY:-NL}
 
 AP_IFACE="wlan1"
-UPLINK_IFACE="wlan0"
 AP_IP="192.168.50.1"
+
+# Uplink interface auto-detectie: eth0 heeft voorkeur boven wlan0
+info "Uplink interface detecteren..."
+UPLINK_IFACE="wlan0"
+if ip link show eth0 &>/dev/null; then
+    ETH_CARRIER=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+    if [[ "$ETH_CARRIER" == "1" ]]; then
+        UPLINK_IFACE="eth0"
+        ok "eth0: kabel aanwezig — eth0 gekozen als uplink"
+    else
+        info "eth0: geen kabel — wlan0 gekozen als uplink"
+    fi
+else
+    info "eth0 niet aanwezig — wlan0 gekozen als uplink"
+fi
 DHCP_START="192.168.50.10"
 DHCP_END="192.168.50.200"
 
@@ -49,6 +63,14 @@ echo ""
 read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM
 [[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
 echo ""
+
+# Instellingen persisteren voor switch-uplink.sh
+cat > /etc/toetslocker.conf << EOF
+UPLINK_IFACE=${UPLINK_IFACE}
+AP_IFACE=${AP_IFACE}
+AP_IP=${AP_IP}
+EOF
+ok "Configuratie opgeslagen (/etc/toetslocker.conf)"
 
 # =============================================================================
 # STAP 1: Packages
@@ -215,9 +237,23 @@ ok "IP forwarding actief"
 # STAP 7: nftables firewall
 # =============================================================================
 info "Stap 7: nftables firewall..."
+
+# De actieve uplink wordt opgeslagen in een apart include-bestand.
+# switch-uplink.sh hoeft dan alleen dit bestand te overschrijven en
+# nftables te herladen — de rest van nftables.conf blijft ongewijzigd.
+mkdir -p /etc/nftables.d
+echo "define UPLINK = ${UPLINK_IFACE}" > /etc/nftables.d/uplink.conf
+
 cat > /etc/nftables.conf << EOF
 #!/usr/sbin/nft -f
-flush ruleset
+include "/etc/nftables.d/uplink.conf"
+
+# Verwijder alleen onze eigen tabellen; Docker's nat/filter tabellen blijven intact
+table ip custom_nat {}
+delete table ip custom_nat
+
+table inet filter {}
+delete table inet filter
 
 # Eigen NAT-tabel (prioriteit -150, vóór Docker's -100)
 table ip custom_nat {
@@ -228,7 +264,7 @@ table ip custom_nat {
     }
     chain postrouting {
         type nat hook postrouting priority srcnat;
-        oifname "${UPLINK_IFACE}" masquerade;
+        oifname \$UPLINK masquerade;
     }
 }
 
@@ -245,7 +281,8 @@ table inet filter {
         ct state established,related accept
         ct state invalid drop
         iif "lo" accept
-        iifname "${UPLINK_IFACE}" accept
+        iifname "eth0"  accept
+        iifname "wlan0" accept
         iifname "${AP_IFACE}" udp dport 67 accept
         iifname "${AP_IFACE}" udp dport 53 accept
         iifname "${AP_IFACE}" tcp dport 53 accept
@@ -258,13 +295,13 @@ table inet filter {
         type filter hook forward priority filter; policy drop;
         ct state established,related accept
         ct state invalid drop
-        # Studenten naar internet: alleen whitelist IPs via HTTP(S)
-        iifname "${AP_IFACE}" oifname "${UPLINK_IFACE}" ip daddr @allowed_ips tcp dport { 80, 443 } accept
-        iifname "${AP_IFACE}" oifname "${UPLINK_IFACE}" ip daddr @allowed_ips udp dport 443 accept
-        # Studenten naar Docker container
+        # Studenten naar internet: alleen whitelist IPs via actieve uplink
+        iifname "${AP_IFACE}" oifname \$UPLINK ip daddr @allowed_ips tcp dport { 80, 443 } accept
+        iifname "${AP_IFACE}" oifname \$UPLINK ip daddr @allowed_ips udp dport 443 accept
+        # Docker container: altijd bereikbaar via AP én beide beheerinterfaces
         iifname "${AP_IFACE}" oifname "docker0" tcp dport { 80, 8080 } accept
-        # Beheerder via uplink-netwerk naar Docker container
-        iifname "${UPLINK_IFACE}" oifname "docker0" tcp dport { 80, 8080 } accept
+        iifname "eth0"        oifname "docker0" tcp dport { 80, 8080 } accept
+        iifname "wlan0"       oifname "docker0" tcp dport { 80, 8080 } accept
     }
 
     chain output {
@@ -361,6 +398,91 @@ sed -i '/toetslocker/d' /etc/hosts
 echo "${AP_IP} toetslocker.lan toetslocker" >> /etc/hosts
 
 # =============================================================================
+# STAP 9b: switch-uplink.sh installeren
+# =============================================================================
+info "Stap 9b: switch-uplink.sh installeren..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR}/switch-uplink.sh" ]]; then
+    cp "${SCRIPT_DIR}/switch-uplink.sh" /usr/local/bin/switch-uplink.sh
+    chmod +x /usr/local/bin/switch-uplink.sh
+    ok "switch-uplink.sh geïnstalleerd (/usr/local/bin/switch-uplink.sh)"
+else
+    warn "switch-uplink.sh niet gevonden naast install.sh — stap overgeslagen"
+fi
+
+# =============================================================================
+# STAP 9c: uplink-monitor (realtime eth0/wlan0 bewaking + whitelist-behoud)
+# =============================================================================
+info "Stap 9c: uplink-monitor installeren..."
+
+# Verwijder eventuele oude auto-uplink installatie
+systemctl disable --now auto-uplink.service 2>/dev/null || true
+rm -f /etc/systemd/system/auto-uplink.service \
+      /usr/local/bin/auto-uplink.sh
+
+cat > /usr/local/bin/uplink-monitor.sh << 'SCRIPT'
+#!/bin/bash
+# Bewaakt eth0 carrier en wisselt masquerade-uplink in realtime.
+# eth0 met carrier → eth0; anders → wlan0.
+# switch-uplink.sh herlaadt nftables + whitelist zodat de allowed_ips set
+# altijd actief blijft op de juiste interface.
+
+CONF=/etc/toetslocker.conf
+SWITCH=/usr/local/bin/switch-uplink.sh
+
+_log() { logger -t uplink-monitor "$1"; echo "[uplink-monitor] $1"; }
+
+check_and_switch() {
+    [[ -f "$CONF" ]] || return
+    # Herlaad conf zodat UPLINK_IFACE altijd de huidige waarde heeft
+    # shellcheck source=/dev/null
+    source "$CONF"
+    local eth_carrier
+    eth_carrier=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+
+    if [[ "$eth_carrier" == "1" ]] && [[ "$UPLINK_IFACE" != "eth0" ]]; then
+        _log "eth0 carrier aanwezig — wisselen naar eth0"
+        "$SWITCH" eth0 || _log "Fout bij wisselen naar eth0"
+    elif [[ "$eth_carrier" != "1" ]] && [[ "$UPLINK_IFACE" != "wlan0" ]]; then
+        _log "eth0 carrier weg — wisselen naar wlan0"
+        "$SWITCH" wlan0 || _log "Fout bij wisselen naar wlan0"
+    fi
+}
+
+# Initiële controle bij opstart
+check_and_switch
+
+# Realtime bewaking via kernel netlink events
+ip monitor link 2>/dev/null | while IFS= read -r line; do
+    if [[ "$line" == *"eth0"* ]]; then
+        sleep 2  # Wacht tot kernel carrier-bestand is bijgewerkt
+        check_and_switch
+    fi
+done
+SCRIPT
+chmod +x /usr/local/bin/uplink-monitor.sh
+
+cat > /etc/systemd/system/uplink-monitor.service << 'EOF'
+[Unit]
+Description=Realtime uplink monitor (eth0 boven wlan0)
+After=nftables.service network.target
+Before=hostapd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/uplink-monitor.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable uplink-monitor.service
+ok "uplink-monitor service aangemaakt en ingeschakeld"
+
+# =============================================================================
 # STAP 10: Services starten
 # =============================================================================
 info "Stap 10: Services starten..."
@@ -373,6 +495,7 @@ sleep 1
 systemctl restart dnsmasq
 systemctl restart docker
 sleep 3
+systemctl restart uplink-monitor
 
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
@@ -400,7 +523,7 @@ echo " Eindcontrole"
 echo "============================================"
 
 ERRORS=0
-for svc in hostapd dnsmasq nftables docker wlan1-setup; do
+for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor; do
     if [[ "$(systemctl is-active "$svc")" == "active" ]]; then
         ok "$svc actief"
     else
@@ -429,12 +552,15 @@ else
 fi
 
 echo ""
-echo "  WiFi netwerk : ${SSID}"
-echo "  IP-adres     : ${AP_IP}"
-echo "  Container    : http://toetslocker.lan"
+echo "  WiFi netwerk    : ${SSID}"
+echo "  WiFi wachtwoord : ${WIFI_PASS}"
+echo "  IP-adres        : ${AP_IP}"
+echo "  Adapter profiel : $(basename "${HOSTAPD_CONF}")"
+echo "  Container       : http://toetslocker.lan"
 echo ""
 echo "  Whitelist bewerken : sudo nano /etc/whitelist.txt"
 echo "  Whitelist herladen : sudo /usr/local/bin/update-whitelist.sh"
+echo "  Wissel uplink      : sudo switch-uplink.sh eth0   (of wlan0)"
 echo ""
 echo "  Herstart de Pi voor cgroup-geheugenlimieten (Docker)."
 echo ""
