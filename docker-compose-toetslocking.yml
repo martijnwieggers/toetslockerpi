@@ -13,7 +13,7 @@ services:
   toetslocking:
     image: martijnwieggers/gctoetslocking:latest
     container_name: toetslocker
-    restart: always
+    restart: unless-stopped
 
     # Host networking geeft de container directe toegang tot alle
     # host-interfaces (eth1, wlan0, etc.) — vereist voor iw en ip-commando's.

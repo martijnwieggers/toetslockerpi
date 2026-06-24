@@ -427,7 +427,7 @@ services:
   toetslocking:
     image: martijnwieggers/gctoetslocking:latest
     container_name: toetslocker
-    restart: always
+    restart: unless-stopped
 
     # Host networking geeft de container directe toegang tot alle
     # host-interfaces (wlan1, wlan0, etc.) — vereist voor iw en ip-commando's.
@@ -566,6 +566,36 @@ systemctl enable uplink-monitor.service
 ok "uplink-monitor service aangemaakt en ingeschakeld"
 
 # =============================================================================
+# STAP 9d: toetslocker systemd service (pull latest image bij iedere opstart)
+# =============================================================================
+info "Stap 9d: toetslocker.service aanmaken (auto-pull bij opstart)..."
+
+cat > /etc/systemd/system/toetslocker.service << 'EOF'
+[Unit]
+Description=ToetsLocker app — pull latest image en start container
+After=docker.service network-online.target nftables.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Pull nieuwe image (fout = OK, dan wordt gecachede image gebruikt)
+ExecStartPre=-/usr/bin/docker compose -f /etc/toetslocker/docker-compose.yml pull
+# Start container (of herstart als image gewijzigd is)
+ExecStart=/usr/bin/docker compose -f /etc/toetslocker/docker-compose.yml up -d
+ExecStop=/usr/bin/docker compose -f /etc/toetslocker/docker-compose.yml down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable toetslocker.service
+ok "toetslocker.service aangemaakt en ingeschakeld"
+
+# =============================================================================
 # STAP 10: Services starten
 # =============================================================================
 info "Stap 10: Services starten..."
@@ -586,14 +616,10 @@ systemctl restart uplink-monitor
 # Verwijder eventuele oude nginx container
 docker rm -f toetslocker-nginx 2>/dev/null || true
 
-# gctoetslocking app via docker-compose
-if [[ -f /etc/toetslocker/docker-compose.yml ]]; then
-    docker compose -f /etc/toetslocker/docker-compose.yml pull
-    docker compose -f /etc/toetslocker/docker-compose.yml up -d
-    ok "gctoetslocking container gestart (toetslocker)"
-else
-    warn "docker-compose.yml niet gevonden — gctoetslocking niet gestart"
-fi
+# gctoetslocking app via systemd service (pull + start)
+systemctl start toetslocker.service \
+    && ok "gctoetslocking container gestart via toetslocker.service" \
+    || warn "toetslocker.service kon niet starten — controleer: journalctl -u toetslocker"
 sleep 20
 
 # =============================================================================
@@ -605,7 +631,7 @@ echo " Eindcontrole"
 echo "============================================"
 
 ERRORS=0
-for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor; do
+for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker; do
     if [[ "$(systemctl is-active "$svc")" == "active" ]]; then
         ok "$svc actief"
     else
