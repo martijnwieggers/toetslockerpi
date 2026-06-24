@@ -233,6 +233,19 @@ sysctl -w net.ipv4.ip_forward=1 > /dev/null
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ipforward.conf
 ok "IP forwarding actief"
 
+# DNS permanent op 8.8.8.8 zetten voor eth0 en wlan0.
+# DHCP-DNS (bijv. 192.168.137.1 via Windows ICS) lost niet altijd op.
+info "Stap 6b: DNS fixeren op 8.8.8.8..."
+for IFACE in eth0 wlan0; do
+    CON=$(nmcli -t -f NAME,DEVICE con show 2>/dev/null \
+          | awk -F: -v if="$IFACE" '$2==if{print $1}' | head -1)
+    if [[ -n "$CON" ]]; then
+        nmcli con modify "$CON" ipv4.dns "8.8.8.8 8.8.4.4" ipv4.ignore-auto-dns yes
+        ok "DNS 8.8.8.8 ingesteld voor ${IFACE} (verbinding: ${CON})"
+    fi
+done
+nmcli con reload 2>/dev/null || true
+
 # =============================================================================
 # STAP 7: nftables firewall
 # =============================================================================
