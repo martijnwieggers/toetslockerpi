@@ -22,6 +22,9 @@ scp "%~dp0install.sh" "%~dp0switch-uplink.sh" "%PI_USER%@%PI_IP%:~/"
 
 if %ERRORLEVEL% EQU 0 (
     echo.
+    echo Uitvoerrechten instellen op de Pi...
+    ssh "%PI_USER%@%PI_IP%" "chmod +x ~/install.sh ~/switch-uplink.sh"
+    echo.
     echo Klaar! Verbind met de Pi en start de installatie:
     echo   ssh %PI_USER%@%PI_IP%
     echo   sudo ./install.sh
