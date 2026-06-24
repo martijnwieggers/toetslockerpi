@@ -1,0 +1,66 @@
+# docker-compose.pi.yml — StudentWifiMonitoring productie op Raspberry Pi
+#
+# Gebruik: docker compose -f docker-compose.pi.yml up -d
+#
+# Dit bestand is bedoeld voor productiegebruik op de Raspberry Pi.
+# Gebruik docker-compose.local.yml voor lokaal testen op Windows.
+#
+# network_mode: host is bewust gekozen omdat de app Linux-netwerkcommando's
+# gebruikt (iw, ip) die direct toegang tot host-interfaces (eth1) nodig hebben.
+# Met bridge networking zijn host-interfaces niet zichtbaar vanuit de container.
+
+services:
+  toetslocking:
+    image: martijnwieggers/gctoetslocking:latest
+    container_name: toetslocker
+    restart: always
+
+    # Host networking geeft de container directe toegang tot alle
+    # host-interfaces (eth1, wlan0, etc.) — vereist voor iw en ip-commando's.
+    # Poortmapping is niet nodig: de app is bereikbaar op poort 5000 van de Pi.
+    network_mode: host
+
+    privileged: true
+
+    environment:
+      # ASP.NET Core omgeving
+      - ASPNETCORE_ENVIRONMENT=Production
+
+      # HTTP-only — luister op poort 5000
+      - ASPNETCORE_URLS=http://+:5000
+
+      # SQLite-database in het gemounte volume
+      - ConnectionStrings__Default=Data Source=/data/app.db
+
+      # Netwerkinterface waarop studenten binnenkomen — pas aan indien anders
+      - Monitoring__Interface=wlan1
+      - Monitoring__PollSeconds=2
+      - Wifi__Interface=wlan0
+
+      # Docent-wachtwoord — verplicht wijzigen vóór productiegebruik
+      - Teacher__Password=1234
+
+      # Geen HTTPS-redirects — Pi draait zonder TLS
+      - ForceHttps=false
+
+      - TZ=Europe/Amsterdam
+      - DOTNET_RUNNING_IN_CONTAINER=true
+
+
+    volumes:
+      # Persistente opslag voor de SQLite-database
+      # Data blijft behouden bij container-restarts en image-updates
+      - toetslocking-pi-data:/data
+      - /var/run/dbus:/var/run/dbus:ro
+      - /etc/NetworkManager:/etc/NetworkManager:ro
+
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  toetslocking-pi-data:

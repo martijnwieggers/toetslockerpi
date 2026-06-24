@@ -404,59 +404,59 @@ systemctl daemon-reload
 systemctl enable docker
 ok "Docker geconfigureerd"
 
-# Nginx captive portal configuratie
+# Nginx captive portal configuratie + docker-compose
 mkdir -p /etc/toetslocker
 
+# nginx stuurt niet-portal-verkeer door naar toetslocker.lan en
+# proxiet toetslocker.lan zelf naar de gctoetslocking-app op poort 5000.
+# host.docker.internal wijst naar de host zodat de bridge-container
+# de host-network-app kan bereiken.
 cat > /etc/toetslocker/nginx.conf << 'NGINX'
-# Vang alle verzoeken op die niet voor toetslocker.lan zijn → redirect
 server {
     listen 80 default_server;
     server_name _;
     return 302 http://toetslocker.lan/;
 }
 
-# Serveer de landingspagina voor toetslocker.lan
 server {
     listen 80;
     server_name toetslocker.lan;
-    root /usr/share/nginx/html;
-    index index.html;
+
+    location / {
+        proxy_pass         http://host.docker.internal:5000;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout    60s;
+    }
 }
 NGINX
+ok "Nginx captive portal configuratie aangemaakt (/etc/toetslocker/nginx.conf)"
 
-cat > /etc/toetslocker/index.html << 'HTML'
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ToetsLocker</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-               background: #f0f2f5; display: flex; align-items: center;
-               justify-content: center; min-height: 100vh; }
-        .card { background: white; border-radius: 12px; padding: 48px 40px;
-                max-width: 420px; width: 90%; text-align: center;
-                box-shadow: 0 4px 20px rgba(0,0,0,.08); }
-        h1 { font-size: 2rem; color: #1a73e8; margin-bottom: 16px; }
-        p  { color: #555; line-height: 1.7; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>ToetsLocker</h1>
-        <p>Je bent verbonden met het toetsnetwerk.<br>
-           Gebruik de door je docent opgegeven applicatie.</p>
-    </div>
-</body>
-</html>
-HTML
-ok "Nginx captive portal configuratie aangemaakt (/etc/toetslocker/)"
+# docker-compose voor de gctoetslocking-app
+SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" ]]; then
+    cp "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" /etc/toetslocker/docker-compose.yml
+    ok "docker-compose.yml gekopieerd naar /etc/toetslocker/"
+else
+    warn "docker-compose-toetslocking.yml niet gevonden naast install.sh — app niet gestart"
+fi
 
 # /etc/hosts
 sed -i '/toetslocker/d' /etc/hosts
 echo "${AP_IP} toetslocker.lan toetslocker" >> /etc/hosts
+
+# =============================================================================
+# STAP 9a: Docker Hub inloggen
+# =============================================================================
+info "Stap 9a: Docker Hub inloggen als martijnwieggers..."
+echo "  Genereer een access token op https://hub.docker.com → Account Settings → Personal access tokens"
+read -rsp "  Plak het Docker Hub access token: " DOCKER_TOKEN; echo ""
+echo "$DOCKER_TOKEN" | docker login -u martijnwieggers --password-stdin \
+    || fail "Docker login mislukt — controleer het access token en probeer opnieuw"
+unset DOCKER_TOKEN
+ok "Ingelogd bij Docker Hub als martijnwieggers"
 
 # =============================================================================
 # STAP 9b: switch-uplink.sh installeren
@@ -561,16 +561,25 @@ systemctl restart uplink-monitor
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
 
-# Docker container — altijd opnieuw aanmaken zodat volume-mounts kloppen
-docker rm -f toetslocker 2>/dev/null || true
+# Nginx captive portal container
+docker rm -f toetslocker-nginx 2>/dev/null || true
 docker run -d \
-    --name toetslocker \
+    --name toetslocker-nginx \
     --restart unless-stopped \
     -p 80:80 \
+    --add-host=host.docker.internal:host-gateway \
     -v /etc/toetslocker/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
-    -v /etc/toetslocker/index.html:/usr/share/nginx/html/index.html:ro \
     nginx:alpine
-ok "Container 'toetslocker' gestart (captive portal)"
+ok "Nginx captive portal container gestart (toetslocker-nginx)"
+
+# gctoetslocking app via docker-compose
+if [[ -f /etc/toetslocker/docker-compose.yml ]]; then
+    docker compose -f /etc/toetslocker/docker-compose.yml pull
+    docker compose -f /etc/toetslocker/docker-compose.yml up -d
+    ok "gctoetslocking container gestart (toetslocker)"
+else
+    warn "docker-compose.yml niet gevonden — gctoetslocking niet gestart"
+fi
 sleep 20
 
 # =============================================================================
@@ -596,10 +605,15 @@ DNS_OK=$(nslookup toetslocker.lan "${AP_IP}" 2>/dev/null | grep -c "${AP_IP}" ||
     && ok "DNS: toetslocker.lan → ${AP_IP}" \
     || { warn "DNS: toetslocker.lan resolveert niet"; ERRORS=$((ERRORS+1)); }
 
-HTTP_OK=$(curl -sL --max-time 5 "http://toetslocker.lan" | grep -ci "toetslocker" || true)
-[[ "$HTTP_OK" -gt 0 ]] \
-    && ok "HTTP: captive portal bereikbaar (http://toetslocker.lan)" \
-    || { warn "HTTP: captive portal niet bereikbaar"; ERRORS=$((ERRORS+1)); }
+HTTP_NGINX=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://${AP_IP}" || true)
+[[ "$HTTP_NGINX" =~ ^(200|301|302)$ ]] \
+    && ok "HTTP: nginx captive portal bereikbaar (status ${HTTP_NGINX})" \
+    || { warn "HTTP: nginx captive portal niet bereikbaar (status ${HTTP_NGINX})"; ERRORS=$((ERRORS+1)); }
+
+APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:5000" || true)
+[[ "$APP_OK" =~ ^(200|301|302)$ ]] \
+    && ok "HTTP: gctoetslocking app bereikbaar op poort 5000 (status ${APP_OK})" \
+    || { warn "HTTP: gctoetslocking app niet bereikbaar op poort 5000 — mogelijk nog aan het starten"; }
 
 echo ""
 if [[ $ERRORS -eq 0 ]]; then
