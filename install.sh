@@ -404,37 +404,10 @@ systemctl daemon-reload
 systemctl enable docker
 ok "Docker geconfigureerd"
 
-# Nginx captive portal configuratie + docker-compose
-mkdir -p /etc/toetslocker
-
-# nginx stuurt niet-portal-verkeer door naar toetslocker.lan en
-# proxiet toetslocker.lan zelf naar de gctoetslocking-app op poort 5000.
-# host.docker.internal wijst naar de host zodat de bridge-container
-# de host-network-app kan bereiken.
-cat > /etc/toetslocker/nginx.conf << 'NGINX'
-server {
-    listen 80 default_server;
-    server_name _;
-    return 302 http://toetslocker.lan/;
-}
-
-server {
-    listen 80;
-    server_name toetslocker.lan;
-
-    location / {
-        proxy_pass         http://host.docker.internal:5000;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_connect_timeout 10s;
-        proxy_read_timeout    60s;
-    }
-}
-NGINX
-ok "Nginx captive portal configuratie aangemaakt (/etc/toetslocker/nginx.conf)"
-
 # docker-compose voor de gctoetslocking-app
+# De app draait met network_mode: host op poort 80 — geen nginx nodig.
+# nftables stuurt captive-portal-verkeer al naar poort 80 van de Pi.
+mkdir -p /etc/toetslocker
 SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" ]]; then
     cp "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" /etc/toetslocker/docker-compose.yml
@@ -561,16 +534,8 @@ systemctl restart uplink-monitor
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
 
-# Nginx captive portal container
+# Verwijder eventuele oude nginx container
 docker rm -f toetslocker-nginx 2>/dev/null || true
-docker run -d \
-    --name toetslocker-nginx \
-    --restart unless-stopped \
-    -p 80:80 \
-    --add-host=host.docker.internal:host-gateway \
-    -v /etc/toetslocker/nginx.conf:/etc/nginx/conf.d/default.conf:ro \
-    nginx:alpine
-ok "Nginx captive portal container gestart (toetslocker-nginx)"
 
 # gctoetslocking app via docker-compose
 if [[ -f /etc/toetslocker/docker-compose.yml ]]; then
@@ -605,15 +570,10 @@ DNS_OK=$(nslookup toetslocker.lan "${AP_IP}" 2>/dev/null | grep -c "${AP_IP}" ||
     && ok "DNS: toetslocker.lan → ${AP_IP}" \
     || { warn "DNS: toetslocker.lan resolveert niet"; ERRORS=$((ERRORS+1)); }
 
-HTTP_NGINX=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://${AP_IP}" || true)
-[[ "$HTTP_NGINX" =~ ^(200|301|302)$ ]] \
-    && ok "HTTP: nginx captive portal bereikbaar (status ${HTTP_NGINX})" \
-    || { warn "HTTP: nginx captive portal niet bereikbaar (status ${HTTP_NGINX})"; ERRORS=$((ERRORS+1)); }
-
-APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:5000" || true)
+APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:80" || true)
 [[ "$APP_OK" =~ ^(200|301|302)$ ]] \
-    && ok "HTTP: gctoetslocking app bereikbaar op poort 5000 (status ${APP_OK})" \
-    || { warn "HTTP: gctoetslocking app niet bereikbaar op poort 5000 — mogelijk nog aan het starten"; }
+    && ok "HTTP: gctoetslocking app bereikbaar op poort 80 (status ${APP_OK})" \
+    || { warn "HTTP: gctoetslocking app niet bereikbaar op poort 80 — mogelijk nog aan het starten"; ERRORS=$((ERRORS+1)); }
 
 echo ""
 if [[ $ERRORS -eq 0 ]]; then

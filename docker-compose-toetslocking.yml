@@ -26,8 +26,8 @@ services:
       # ASP.NET Core omgeving
       - ASPNETCORE_ENVIRONMENT=Production
 
-      # HTTP-only — luister op poort 5000
-      - ASPNETCORE_URLS=http://+:5000
+      # HTTP-only — luister op poort 80
+      - ASPNETCORE_URLS=http://+:80
 
       # SQLite-database in het gemounte volume
       - ConnectionStrings__Default=Data Source=/data/app.db
@@ -56,7 +56,7 @@ services:
 
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
       interval: 30s
       timeout: 10s
       retries: 3
