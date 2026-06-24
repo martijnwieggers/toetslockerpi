@@ -617,7 +617,8 @@ systemctl restart uplink-monitor
 docker rm -f toetslocker-nginx 2>/dev/null || true
 
 # gctoetslocking app via systemd service (pull + start)
-systemctl start toetslocker.service \
+# restart i.p.v. start: werkt ook als service al actief is bij herinstallatie
+systemctl restart toetslocker.service \
     && ok "gctoetslocking container gestart via toetslocker.service" \
     || warn "toetslocker.service kon niet starten — controleer: journalctl -u toetslocker"
 sleep 20
