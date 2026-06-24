@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-06-23
+Bijgewerkt: 2026-06-24
 
 ---
 
@@ -33,7 +33,7 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 | AP IP-adres | 192.168.50.1 |
 | DHCP range | 192.168.50.10 – 192.168.50.200 |
 | Domeinnaam | toetslocker.lan |
-| Docker container | mcr.microsoft.com/dotnet/samples:aspnetapp op poort 80 |
+| Docker container | martijnwieggers/gctoetslocking:latest op poort 80 |
 
 ---
 
@@ -116,6 +116,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 |---------|-------------|
 | `C:\Claude\pi-install\install.sh` | Volledig idempotent installatiescript (voor verse Pi) |
 | `C:\Claude\pi-install\switch-uplink.sh` | Wisselt actieve uplink (eth0/wlan0) en herlaadt nftables + whitelist |
+| `C:\Claude\pi-install\kopieren-naar-pi.cmd` | Kopieert install.sh + switch-uplink.sh naar Pi via scp; zet daarna +x |
 | `C:\Claude\pi-install\windows_ics.ps1` | PowerShell script voor Windows ICS instellen (uitvoeren als Administrator) |
 | `C:\Claude\pi-install\whitelist.txt` | Lokale kopie van de domeinwhitelist |
 | `C:\Claude\pi-install\commandos.md` | Stap-voor-stap commandolog (stappen 1–12) |
@@ -140,8 +141,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/etc/systemd/system/docker.service.d/after-nftables.conf` | Docker start na nftables |
 | `/etc/systemd/system/dnsmasq.service.d/override.conf` | dnsmasq start na wlan1-setup |
 | `/etc/systemd/system/uplink-monitor.service` | Realtime uplink-bewaking (eth0/wlan0) |
+| `/etc/systemd/system/toetslocker.service` | Pull latest image + start container bij iedere opstart |
 | `/usr/local/bin/uplink-monitor.sh` | Daemon: ip monitor link + switch-uplink.sh |
 | `/usr/local/bin/switch-uplink.sh` | Wisselt uplink: schrijft uplink.conf, herlaadt nftables + whitelist |
+| `/etc/toetslocker/docker-compose.yml` | Docker Compose voor gctoetslocking app |
 | `/boot/firmware/cmdline.txt` | cgroup_memory=1 toegevoegd |
 | `/etc/hosts` | 192.168.50.1 toetslocker.lan toetslocker |
 | `/etc/toetslocker.conf` | Actieve configuratie (UPLINK_IFACE, AP_IFACE, AP_IP) |
@@ -157,6 +160,7 @@ nftables         active + enabled
 docker           active + enabled
 wlan1-setup      active + enabled
 uplink-monitor   active + enabled
+toetslocker      active + enabled   (pull latest image + start bij opstart)
 ```
 
 ---
@@ -261,8 +265,9 @@ Huidig in whitelist.txt:
 
 ## Volgende stappen (optioneel)
 
-- [x] Eigen Docker-applicatie deployen ter vervanging van nginx:alpine (aspnetapp)
-- [x] docker-compose geïnstalleerd (`apt install docker-compose`)
+- [x] Eigen Docker-applicatie deployen: martijnwieggers/gctoetslocking:latest op poort 80
+- [x] docker-compose geïnstalleerd en ingebakken in install.sh
+- [x] toetslocker.service: pull latest image + start container bij iedere opstart
 - [x] Schooldomeinen toevoegen aan `/etc/whitelist.txt` (itsLearning + Microsoft SSO)
 - [x] Reboot-test uitvoeren om te bevestigen dat alles automatisch start
 - [x] Dubbele uplink: eth0 (voorkeur) + wlan0 (fallback) met realtime bewaking
@@ -275,12 +280,19 @@ Huidig in whitelist.txt:
 
 ## Installatiescript gebruiken op verse Pi
 
+**Optie A — via het CMD-script (aanbevolen):**
+
+Dubbelklik op `kopieren-naar-pi.cmd` in de `C:\Claude\pi-install` map.  
+Het script vraagt om IP-adres en gebruikersnaam, kopieert beide bestanden via scp en zet automatisch +x.
+
+**Optie B — handmatig:**
+
 ```bash
 # Script kopiëren naar Pi (vanuit Windows):
 scp C:\Claude\pi-install\install.sh C:\Claude\pi-install\switch-uplink.sh <gebruiker>@<pi-ip>:~/
 
 # Op de Pi uitvoeren:
-chmod +x install.sh
+chmod +x install.sh switch-uplink.sh
 sudo ./install.sh
 ```
 
