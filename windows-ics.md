@@ -95,7 +95,6 @@ Na afloop:
 |-----------|--------|
 | Windows IP (Pi-adapter) | `192.168.137.1` |
 | Pi IP via DHCP | automatisch, bijv. `192.168.137.x` |
-| Pi IP handmatig | `192.168.137.2` |
 | Gateway op Pi | `192.168.137.1` |
 | DNS op Pi | `192.168.137.1` of `8.8.8.8` |
 
@@ -105,22 +104,17 @@ Windows stelt automatisch een DHCP-server in op de Pi-adapter. De Pi krijgt norm
 
 ## Pi bereiken via SSH na ICS
 
-Het IP van de Pi-adapter op Windows wordt `192.168.137.1`. Zoek het IP van de Pi op:
+De Pi krijgt via DHCP automatisch een IP in het bereik `192.168.137.x`. Zoek het op met:
 
 ```powershell
 # Op Windows — toont verbonden apparaten
 arp -a
 ```
 
-Of stel op de Pi een statisch IP in:
+Verbind daarna via SSH:
 
-```bash
-# Op de Pi — tijdelijk
-sudo ip addr add 192.168.137.2/24 dev eth0
-sudo ip route add default via 192.168.137.1
-
-# SSH vanuit Windows
-ssh mwieggers@192.168.137.2
+```powershell
+ssh mwieggers@192.168.137.x
 ```
 
 ---
