@@ -238,7 +238,7 @@ ok "IP forwarding actief"
 info "Stap 6b: DNS fixeren op 8.8.8.8..."
 for IFACE in eth0 wlan0; do
     CON=$(nmcli -t -f NAME,DEVICE con show 2>/dev/null \
-          | awk -F: -v if="$IFACE" '$2==if{print $1}' | head -1)
+          | awk -F: -v dev="$IFACE" '$2==dev{print $1}' | head -1)
     if [[ -n "$CON" ]]; then
         nmcli con modify "$CON" ipv4.dns "8.8.8.8 8.8.4.4" ipv4.ignore-auto-dns yes
         ok "DNS 8.8.8.8 ingesteld voor ${IFACE} (verbinding: ${CON})"
