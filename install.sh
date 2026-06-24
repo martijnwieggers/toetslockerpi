@@ -404,17 +404,53 @@ systemctl daemon-reload
 systemctl enable docker
 ok "Docker geconfigureerd"
 
-# docker-compose voor de gctoetslocking-app
+# docker-compose voor de gctoetslocking-app (ingebakken in install.sh)
 # De app draait met network_mode: host op poort 80 — geen nginx nodig.
 # nftables stuurt captive-portal-verkeer al naar poort 80 van de Pi.
 mkdir -p /etc/toetslocker
-SCRIPT_DIR_EARLY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" ]]; then
-    cp "${SCRIPT_DIR_EARLY}/docker-compose-toetslocking.yml" /etc/toetslocker/docker-compose.yml
-    ok "docker-compose.yml gekopieerd naar /etc/toetslocker/"
-else
-    warn "docker-compose-toetslocking.yml niet gevonden naast install.sh — app niet gestart"
-fi
+
+cat > /etc/toetslocker/docker-compose.yml << 'COMPOSE'
+services:
+  toetslocking:
+    image: martijnwieggers/gctoetslocking:latest
+    container_name: toetslocker
+    restart: always
+
+    # Host networking geeft de container directe toegang tot alle
+    # host-interfaces (wlan1, wlan0, etc.) — vereist voor iw en ip-commando's.
+    # Poortmapping is niet nodig: de app is bereikbaar op poort 80 van de Pi.
+    network_mode: host
+
+    privileged: true
+
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__Default=Data Source=/data/app.db
+      - Monitoring__Interface=wlan1
+      - Monitoring__PollSeconds=2
+      - Wifi__Interface=wlan0
+      - Teacher__Password=1234
+      - ForceHttps=false
+      - TZ=Europe/Amsterdam
+      - DOTNET_RUNNING_IN_CONTAINER=true
+
+    volumes:
+      - toetslocking-pi-data:/data
+      - /var/run/dbus:/var/run/dbus:ro
+      - /etc/NetworkManager:/etc/NetworkManager:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  toetslocking-pi-data:
+COMPOSE
+ok "docker-compose.yml aangemaakt (/etc/toetslocker/docker-compose.yml)"
 
 # /etc/hosts
 sed -i '/toetslocker/d' /etc/hosts
