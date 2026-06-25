@@ -197,6 +197,21 @@ sed -i 's|hostapd-mt7921u.conf|hostapd.conf|' /etc/default/hostapd && systemctl 
 
 ## Kritieke technische details (niet verliezen)
 
+### Verkeersflow: wlan1 → $UPLINK
+
+Verkeer van AP-clients loopt altijd via de actieve uplink (`$UPLINK`), ook als beide uplinks tegelijk verbonden zijn:
+
+```
+Student (wlan1) → nftables FORWARD → $UPLINK (eth0 of wlan0) → internet
+```
+
+Twee lagen sturen dit:
+
+1. **Linux routing table** — NetworkManager geeft eth0 automatisch een lagere metric dan wlan0. Zolang eth0 carrier heeft, is het de default route.
+2. **nftables FORWARD chain** — heeft `policy drop` en laat uitsluitend `iifname "wlan1" oifname $UPLINK` door. Zelfs als de routing table via de verkeerde interface wil sturen, blokkeert nftables het.
+
+`switch-uplink.sh` houdt beide lagen synchroon: het schrijft de nftables `$UPLINK` variabele én herlaadt de whitelist. wlan0 blijft altijd verbonden zodat failover direct werkt (alleen een nftables herlaad, geen WiFi-herverbinding).
+
 ### nftables: table ip custom_nat (priority -150)
 Docker draait zijn eigen `table ip nat` op priority -100. Als onze NAT-tabel ook op -100 staat, blokkeert die Docker's DNAT voor de container. Oplossing: onze prerouting-chain draait op **priority -150** (eerder dan Docker), zodat DNS-redirect werkt én Docker's DNAT daarna nog kan vuren.
 
