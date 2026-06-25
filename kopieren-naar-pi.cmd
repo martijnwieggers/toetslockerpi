@@ -18,12 +18,12 @@ echo Kopieren naar %PI_USER%@%PI_IP%:~/
 echo Voer het SSH-wachtwoord in als scp daarom vraagt.
 echo.
 
-scp "%~dp0install.sh" "%~dp0switch-uplink.sh" "%PI_USER%@%PI_IP%:~/"
+scp "%~dp0install.sh" "%~dp0switch-uplink.sh" "%~dp0logging_on.sh" "%~dp0logging_off.sh" "%PI_USER%@%PI_IP%:~/"
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo Uitvoerrechten instellen op de Pi...
-    ssh "%PI_USER%@%PI_IP%" "chmod +x ~/install.sh ~/switch-uplink.sh"
+    ssh "%PI_USER%@%PI_IP%" "chmod +x ~/install.sh ~/switch-uplink.sh ~/logging_on.sh ~/logging_off.sh"
     echo.
     echo Klaar! Verbind met de Pi en start de installatie:
     echo   ssh %PI_USER%@%PI_IP%
