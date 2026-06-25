@@ -116,7 +116,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 |---------|-------------|
 | `C:\Claude\pi-install\install.sh` | Volledig idempotent installatiescript (voor verse Pi) |
 | `C:\Claude\pi-install\switch-uplink.sh` | Wisselt actieve uplink (eth0/wlan0) en herlaadt nftables + whitelist |
-| `C:\Claude\pi-install\kopieren-naar-pi.cmd` | Kopieert install.sh + switch-uplink.sh naar Pi via scp; zet daarna +x |
+| `C:\Claude\pi-install\kopieren-naar-pi.cmd` | Kopieert install.sh, switch-uplink.sh, logging_on.sh en logging_off.sh naar Pi via scp; zet daarna +x |
 | `C:\Claude\pi-install\windows_ics.ps1` | PowerShell script voor Windows ICS instellen (uitvoeren als Administrator) |
 | `C:\Claude\pi-install\whitelist.txt` | Lokale kopie van de domeinwhitelist |
 | `C:\Claude\pi-install\commandos.md` | Stap-voor-stap commandolog (stappen 1–12) |
