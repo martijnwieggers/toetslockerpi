@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-06-24
+Bijgewerkt: 2026-06-26
 
 ---
 
@@ -130,6 +130,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 |-----|-------------|
 | `/etc/hostapd/hostapd.conf` | AP configuratie (SSID, WPA2) |
 | `/etc/NetworkManager/conf.d/99-unmanaged.conf` | wlan1 buiten NetworkManager |
+| `/etc/NetworkManager/conf.d/99-dns.conf` | Globale DNS-override: alle NM-verbindingen gebruiken 8.8.8.8 / 8.8.4.4 |
 | `/etc/systemd/system/wlan1-setup.service` | Statisch IP 192.168.50.1 op wlan1 |
 | `/etc/dnsmasq.d/ap.conf` | DHCP + DNS basisconfig |
 | `/etc/dnsmasq.d/whitelist.conf` | Automatisch gegenereerd door update-whitelist.sh |
@@ -144,6 +145,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/etc/systemd/system/toetslocker.service` | Pull latest image + start container bij iedere opstart |
 | `/usr/local/bin/uplink-monitor.sh` | Daemon: ip monitor link + switch-uplink.sh |
 | `/usr/local/bin/switch-uplink.sh` | Wisselt uplink: schrijft uplink.conf, herlaadt nftables + whitelist |
+| `/usr/local/bin/logging_on.sh` | DNS query-logging inschakelen (schrijft naar /var/log/dnsmasq.log) |
+| `/usr/local/bin/logging_off.sh` | DNS query-logging uitschakelen |
 | `/etc/toetslocker/docker-compose.yml` | Docker Compose voor gctoetslocking app |
 | `/boot/firmware/cmdline.txt` | cgroup_memory=1 toegevoegd |
 | `/etc/hosts` | 192.168.50.1 toetslocker.lan toetslocker |
@@ -273,7 +276,7 @@ Huidig in whitelist.txt:
 - [x] Dubbele uplink: eth0 (voorkeur) + wlan0 (fallback) met realtime bewaking
 - [ ] WPA3 toevoegen aan hostapd.conf (indien USB adapter dat ondersteunt)
 - [ ] HTTPS captive portal pagina bouwen (nu plain nginx placeholder)
-- [x] Logging inrichten: `log-queries` + `log-facility=/var/log/dnsmasq.log` actief in ap.conf
+- [x] Logging: standaard UIT; `logging_on.sh` / `logging_off.sh` geïnstalleerd in `/usr/local/bin/`
 - [x] SSH key beheer script klaar (ssh-key-beheer.sh): aanmaken, tonen, verwijderen + automatische GitHub SSH config
 
 ---

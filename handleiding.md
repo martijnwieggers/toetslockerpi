@@ -80,6 +80,27 @@ sudo nft list set inet filter allowed_ips
 
 ---
 
+## DNS-logging in-/uitschakelen
+
+Dnsmasq query-logging staat standaard **uit**. De scripts zijn beschikbaar in `/usr/local/bin/`.
+
+**Inschakelen:**
+```bash
+sudo logging_on.sh
+```
+
+**Live meekijken:**
+```bash
+sudo tail -f /var/log/dnsmasq.log
+```
+
+**Uitschakelen:**
+```bash
+sudo logging_off.sh
+```
+
+---
+
 ## Services controleren
 
 ```bash
