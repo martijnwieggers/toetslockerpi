@@ -425,7 +425,7 @@ mkdir -p /etc/toetslocker
 cat > /etc/toetslocker/docker-compose.yml << 'COMPOSE'
 services:
   toetslocking:
-    image: martijnwieggers/gctoetslocking:latest
+    image: ghcr.io/roelofvanleeuwen/gctoetslocking:latest
     container_name: toetslocker
     restart: unless-stopped
 
@@ -470,15 +470,16 @@ sed -i '/toetslocker/d' /etc/hosts
 echo "${AP_IP} toetslocker.lan toetslocker" >> /etc/hosts
 
 # =============================================================================
-# STAP 9a: Docker Hub inloggen
+# STAP 9a: GitHub Container Registry inloggen (ghcr.io)
 # =============================================================================
-info "Stap 9a: Docker Hub inloggen als martijnwieggers..."
-echo "  Genereer een access token op https://hub.docker.com → Account Settings → Personal access tokens"
-read -rsp "  Plak het Docker Hub access token: " DOCKER_TOKEN; echo ""
-echo "$DOCKER_TOKEN" | docker login -u martijnwieggers --password-stdin \
-    || fail "Docker login mislukt — controleer het access token en probeer opnieuw"
-unset DOCKER_TOKEN
-ok "Ingelogd bij Docker Hub als martijnwieggers"
+info "Stap 9a: Inloggen bij ghcr.io..."
+echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
+read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER
+read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN; echo ""
+echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
+    || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
+unset GHCR_TOKEN
+ok "Ingelogd bij ghcr.io als ${GHCR_USER}"
 
 # =============================================================================
 # STAP 9b: switch-uplink.sh installeren

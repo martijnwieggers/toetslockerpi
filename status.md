@@ -33,7 +33,7 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 | AP IP-adres | 192.168.50.1 |
 | DHCP range | 192.168.50.10 – 192.168.50.200 |
 | Domeinnaam | toetslocker.lan |
-| Docker container | martijnwieggers/gctoetslocking:latest op poort 80 |
+| Docker container | ghcr.io/roelofvanleeuwen/gctoetslocking:latest op poort 80 |
 
 ---
 
