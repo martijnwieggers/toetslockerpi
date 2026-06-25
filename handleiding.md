@@ -314,6 +314,9 @@ Stelt limieten en reserveringen in voor CPU en geheugen. De `limits` zijn het ma
 docker ps
 ```
 
+> De container heeft geen healthcheck — `docker ps` toont `Up` zonder `(healthy)`. Dit is normaal: `curl` zit niet in het .NET container image. De container herstart automatisch via `restart: unless-stopped` als hij crasht.
+
+
 **Container herstarten:**
 ```bash
 docker restart wifi-manager

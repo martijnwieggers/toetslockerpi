@@ -224,6 +224,9 @@ dnsmasq 2.91+ ondersteunt `nftset=/<domain>/4#inet#filter#allowed_ips`. Bij elke
 
 Na een uplink-wissel wordt de whitelist automatisch herladen (`update-whitelist.sh`) zodat de `allowed_ips` set direct actief is op de nieuwe interface.
 
+### Geen healthcheck in docker-compose.yml
+De `healthcheck` is verwijderd. Het .NET container image bevat geen `curl`, waardoor de healthcheck altijd faalde met `executable file not found` — ook als de app prima draaide. `docker ps` toont de container als `Up` (zonder `(healthy)`). Automatisch herstarten werkt via `restart: unless-stopped`.
+
 ### .lan in plaats van .local
 iOS gebruikt mDNS (Bonjour) voor `.local` domeinen — dat gaat buiten de gewone DNS om. Daardoor werkte `toetslocker.local` niet via dnsmasq. Opgelost met `.lan` + `domain=lan` + `dhcp-option=option:domain-search,lan` in dnsmasq.
 
