@@ -233,18 +233,15 @@ sysctl -w net.ipv4.ip_forward=1 > /dev/null
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-ipforward.conf
 ok "IP forwarding actief"
 
-# DNS permanent op 8.8.8.8 zetten voor eth0 en wlan0.
-# DHCP-DNS (bijv. 192.168.137.1 via Windows ICS) lost niet altijd op.
-info "Stap 6b: DNS fixeren op 8.8.8.8..."
-for IFACE in eth0 wlan0; do
-    CON=$(nmcli -t -f NAME,DEVICE con show 2>/dev/null \
-          | awk -F: -v dev="$IFACE" '$2==dev{print $1}' | head -1)
-    if [[ -n "$CON" ]]; then
-        nmcli con modify "$CON" ipv4.dns "8.8.8.8 8.8.4.4" ipv4.ignore-auto-dns yes
-        ok "DNS 8.8.8.8 ingesteld voor ${IFACE} (verbinding: ${CON})"
-    fi
-done
-nmcli con reload 2>/dev/null || true
+# DNS permanent op 8.8.8.8 zetten via globale NM-override.
+# Werkt voor alle verbindingen (ook toekomstige), ongeacht of ze actief zijn bij installatie.
+info "Stap 6b: DNS fixeren op 8.8.8.8 (globale NM override)..."
+cat > /etc/NetworkManager/conf.d/99-dns.conf << 'EOF'
+[global-dns-domain-*]
+servers=8.8.8.8,8.8.4.4
+EOF
+nmcli general reload 2>/dev/null || true
+ok "DNS 8.8.8.8 ingesteld voor alle NetworkManager-verbindingen"
 
 # =============================================================================
 # STAP 7: nftables firewall
@@ -493,6 +490,16 @@ if [[ -f "${SCRIPT_DIR}/switch-uplink.sh" ]]; then
 else
     warn "switch-uplink.sh niet gevonden naast install.sh — stap overgeslagen"
 fi
+
+for LOGSCRIPT in logging_on.sh logging_off.sh; do
+    if [[ -f "${SCRIPT_DIR}/${LOGSCRIPT}" ]]; then
+        cp "${SCRIPT_DIR}/${LOGSCRIPT}" /usr/local/bin/${LOGSCRIPT}
+        chmod +x /usr/local/bin/${LOGSCRIPT}
+        ok "${LOGSCRIPT} geïnstalleerd (/usr/local/bin/${LOGSCRIPT})"
+    else
+        warn "${LOGSCRIPT} niet gevonden naast install.sh — stap overgeslagen"
+    fi
+done
 
 # =============================================================================
 # STAP 9c: uplink-monitor (realtime eth0/wlan0 bewaking + whitelist-behoud)
