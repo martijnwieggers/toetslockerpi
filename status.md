@@ -274,6 +274,37 @@ Huidig in whitelist.txt:
 
 ---
 
+## DNS Query Logging
+
+Logging is **standaard uitgeschakeld**. De scripts staan in `/usr/local/bin/` en zijn na installatie direct uitvoerbaar.
+
+### Aan- en uitzetten
+
+```bash
+sudo logging_on.sh    # logging aan  — schrijft naar /var/log/dnsmasq.log
+sudo logging_off.sh   # logging uit  — verwijdert log-regels uit ap.conf
+```
+
+Beide scripts passen `/etc/dnsmasq.d/ap.conf` aan en herstarten dnsmasq automatisch.
+
+### Logging bekijken
+
+```bash
+# Live meekijken (alle berichten):
+sudo tail -f /var/log/dnsmasq.log
+
+# Alleen DNS-queries (geen DHCP-ruis):
+sudo tail -f /var/log/dnsmasq.log | grep query
+
+# Laatste 100 regels:
+sudo tail -n 100 /var/log/dnsmasq.log
+
+# Geblokkeerde domeinen (REFUSED):
+sudo grep REFUSED /var/log/dnsmasq.log
+```
+
+---
+
 ## Lokale scripts
 
 | Bestand | Beschrijving |

@@ -463,13 +463,42 @@ echo "${AP_IP} toetslocker.lan toetslocker" >> /etc/hosts
 # STAP 9a: GitHub Container Registry inloggen (ghcr.io)
 # =============================================================================
 info "Stap 9a: Inloggen bij ghcr.io..."
-echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
-read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER
-read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN; echo ""
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
-    || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
-unset GHCR_TOKEN
-ok "Ingelogd bij ghcr.io als ${GHCR_USER}"
+
+DOCKER_CONF="/root/.docker/config.json"
+DO_LOGIN=true
+
+if [[ -f "$DOCKER_CONF" ]] && grep -q '"ghcr.io"' "$DOCKER_CONF" 2>/dev/null; then
+    STORED_USER=$(python3 -c "
+import json, base64, sys
+try:
+    with open('$DOCKER_CONF') as f:
+        c = json.load(f)
+    auth = c.get('auths', {}).get('ghcr.io', {}).get('auth', '')
+    if auth:
+        print(base64.b64decode(auth).decode().split(':')[0])
+except Exception:
+    pass
+" 2>/dev/null || true)
+
+    if [[ -n "$STORED_USER" ]]; then
+        info "Bestaande ghcr.io login gevonden: ${STORED_USER}"
+    else
+        info "Bestaande ghcr.io login gevonden (gebruikersnaam niet leesbaar)"
+    fi
+
+    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS
+    [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
+fi
+
+if [[ "$DO_LOGIN" == true ]]; then
+    echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
+    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER
+    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN; echo ""
+    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
+        || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
+    unset GHCR_TOKEN
+    ok "Ingelogd bij ghcr.io als ${GHCR_USER}"
+fi
 
 # =============================================================================
 # STAP 9b: switch-uplink.sh installeren
