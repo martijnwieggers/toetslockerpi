@@ -450,13 +450,6 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
       - /etc/NetworkManager:/etc/NetworkManager:ro
 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
 volumes:
   toetslocking-pi-data:
 COMPOSE
