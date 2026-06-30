@@ -22,17 +22,30 @@ echo " ToetsLocker AP Setup"
 echo "============================================"
 echo ""
 
-read -rp  "WiFi netwerknaam (SSID) [ToetsLocker]: " SSID
-SSID=${SSID:-ToetsLocker}
+# Laad bestaande AP-instellingen als defaults
+_DEF_SSID="ToetsLocker"; _DEF_PASS=""; _DEF_COUNTRY="NL"
+if [[ -f /etc/toetslocker.conf ]]; then
+    _v=$(grep '^SSID='      /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
+    [[ -n "$_v" ]] && _DEF_SSID="$_v"
+    _v=$(grep '^WIFI_PASS=' /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
+    [[ -n "$_v" ]] && _DEF_PASS="$_v"
+    _v=$(grep '^COUNTRY='   /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
+    [[ -n "$_v" ]] && _DEF_COUNTRY="$_v"
+    unset _v
+fi
+
+read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSID
+SSID=${SSID:-$_DEF_SSID}
 
 while true; do
-    read -rp  "WiFi wachtwoord (min. 8 tekens): " WIFI_PASS
+    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS
+    WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
     [[ ${#WIFI_PASS} -ge 8 ]] && break
     warn "Minimaal 8 tekens vereist."
 done
 
-read -rp "Landcode [NL]: " COUNTRY
-COUNTRY=${COUNTRY:-NL}
+read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRY
+COUNTRY=${COUNTRY:-$_DEF_COUNTRY}
 
 AP_IFACE="wlan1"
 AP_IP="192.168.50.1"
@@ -69,6 +82,9 @@ cat > /etc/toetslocker.conf << EOF
 UPLINK_IFACE=${UPLINK_IFACE}
 AP_IFACE=${AP_IFACE}
 AP_IP=${AP_IP}
+SSID=${SSID}
+WIFI_PASS=${WIFI_PASS}
+COUNTRY=${COUNTRY}
 EOF
 ok "Configuratie opgeslagen (/etc/toetslocker.conf)"
 
