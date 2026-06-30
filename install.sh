@@ -25,12 +25,12 @@ echo ""
 # Laad bestaande AP-instellingen als defaults
 _DEF_SSID="ToetsLocker"; _DEF_PASS=""; _DEF_COUNTRY="NL"
 if [[ -f /etc/toetslocker.conf ]]; then
-    _v=$(grep '^SSID='      /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
-    [[ -n "$_v" ]] && _DEF_SSID="$_v"
-    _v=$(grep '^WIFI_PASS=' /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
-    [[ -n "$_v" ]] && _DEF_PASS="$_v"
-    _v=$(grep '^COUNTRY='   /etc/toetslocker.conf 2>/dev/null | cut -d= -f2-)
-    [[ -n "$_v" ]] && _DEF_COUNTRY="$_v"
+    _v=$(grep '^SSID='      /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_SSID="$_v" || true
+    _v=$(grep '^WIFI_PASS=' /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_PASS="$_v" || true
+    _v=$(grep '^COUNTRY='   /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_COUNTRY="$_v" || true
     unset _v
 fi
 
