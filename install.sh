@@ -517,27 +517,19 @@ if [[ "$DO_LOGIN" == true ]]; then
 fi
 
 # =============================================================================
-# STAP 9b: switch-uplink.sh installeren
+# STAP 9b: hulpscripts downloaden en installeren
 # =============================================================================
-info "Stap 9b: switch-uplink.sh installeren..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -f "${SCRIPT_DIR}/switch-uplink.sh" ]]; then
-    cp "${SCRIPT_DIR}/switch-uplink.sh" /usr/local/bin/switch-uplink.sh
-    chmod +x /usr/local/bin/switch-uplink.sh
-    ok "switch-uplink.sh geïnstalleerd (/usr/local/bin/switch-uplink.sh)"
-else
-    warn "switch-uplink.sh niet gevonden naast install.sh — stap overgeslagen"
-fi
-
-for LOGSCRIPT in logging_on.sh logging_off.sh; do
-    if [[ -f "${SCRIPT_DIR}/${LOGSCRIPT}" ]]; then
-        cp "${SCRIPT_DIR}/${LOGSCRIPT}" /usr/local/bin/${LOGSCRIPT}
-        chmod +x /usr/local/bin/${LOGSCRIPT}
-        ok "${LOGSCRIPT} geïnstalleerd (/usr/local/bin/${LOGSCRIPT})"
+info "Stap 9b: hulpscripts downloaden van GitHub..."
+_BASE_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main"
+for _SCRIPT in switch-uplink.sh logging_on.sh logging_off.sh; do
+    if curl -fsSL "${_BASE_URL}/${_SCRIPT}" -o "/usr/local/bin/${_SCRIPT}"; then
+        chmod +x "/usr/local/bin/${_SCRIPT}"
+        ok "${_SCRIPT} geïnstalleerd (/usr/local/bin/${_SCRIPT})"
     else
-        warn "${LOGSCRIPT} niet gevonden naast install.sh — stap overgeslagen"
+        warn "${_SCRIPT} kon niet worden gedownload — stap overgeslagen"
     fi
 done
+unset _BASE_URL _SCRIPT
 
 # =============================================================================
 # STAP 9c: uplink-monitor (realtime eth0/wlan0 bewaking + whitelist-behoud)
