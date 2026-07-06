@@ -13,6 +13,11 @@ fail() { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
 
 [[ $EUID -ne 0 ]] && fail "Voer uit als root: sudo $0"
 
+# Bij curl | bash leest bash het script via stdin — read-prompts ook.
+# Omleiding naar /dev/tty zorgt dat interactieve input altijd van de
+# terminal komt, ook als het script gepiped wordt.
+[[ -t 0 ]] || exec < /dev/tty
+
 # =============================================================================
 # CONFIGURATIE
 # =============================================================================
