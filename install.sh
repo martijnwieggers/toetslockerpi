@@ -38,15 +38,18 @@ if [[ -f /etc/toetslocker.conf ]]; then
     unset _v
 fi
 
-read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSIDSSID=${SSID:-$_DEF_SSID}
+read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSID
+SSID=${SSID:-$_DEF_SSID}
 
 while true; do
-    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS    WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
+    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS
+    WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
     [[ ${#WIFI_PASS} -ge 8 ]] && break
     warn "Minimaal 8 tekens vereist."
 done
 
-read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRYCOUNTRY=${COUNTRY:-$_DEF_COUNTRY}
+read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRY
+COUNTRY=${COUNTRY:-$_DEF_COUNTRY}
 
 AP_IFACE="wlan1"
 AP_IP="192.168.50.1"
@@ -74,7 +77,8 @@ info "Land:     $COUNTRY"
 info "AP-IP:    $AP_IP ($AP_IFACE)"
 info "Uplink:   $UPLINK_IFACE"
 echo ""
-read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM[[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
+read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM
+[[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
 echo ""
 
 # Instellingen persisteren voor switch-uplink.sh
