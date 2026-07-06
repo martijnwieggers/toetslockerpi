@@ -1,4 +1,5 @@
 #!/bin/bash
+# versie 1
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
