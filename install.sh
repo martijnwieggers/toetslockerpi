@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 6
+# versie 7
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -366,39 +366,7 @@ curl -fsSL "$_WL_URL" -o /etc/whitelist.txt \
 unset _WL_URL
 ok "Whitelist gedownload van GitHub"
 
-cat > /usr/local/bin/update-whitelist.sh << 'EOF'
-#!/bin/bash
-set -e
-WHITELIST=/etc/whitelist.txt
-OUTPUT=/etc/dnsmasq.d/whitelist.conf
-UPSTREAM=8.8.8.8
-[ -f "$WHITELIST" ] || { echo "Whitelist niet gevonden: $WHITELIST"; exit 1; }
-{
-    echo "# Automatisch gegenereerd op: $(date)"
-    while IFS= read -r domain || [ -n "$domain" ]; do
-        [[ -z "$domain" || "$domain" =~ ^# ]] && continue
-        domain="${domain#\*.}"
-        echo "server=/${domain}/${UPSTREAM}"
-        echo "nftset=/${domain}/4#inet#filter#allowed_ips,4#ip#custom_nat#captive_bypass"
-    done < "$WHITELIST"
-} | tee "$OUTPUT" > /dev/null
-systemctl restart dnsmasq
-COUNT=$(grep -c '^server=' "$OUTPUT" 2>/dev/null || echo 0)
-echo "Whitelist bijgewerkt: ${COUNT} domein(en) geladen"
-
-# Proactief alle domeinen oplossen zodat nftsets direct gevuld zijn
-# na een uplink-wissel — zonder dit moeten clients zelf een DNS-query
-# maken voordat hun IP in de nftset terechtkomt.
-RESOLVED=0
-while IFS= read -r domain || [ -n "$domain" ]; do
-    [[ -z "$domain" || "$domain" =~ ^# ]] && continue
-    domain="${domain#\*.}"
-    dig +short "$domain" @127.0.0.1 > /dev/null 2>&1 && RESOLVED=$((RESOLVED + 1)) || true
-done < "$WHITELIST"
-echo "nftsets gevuld: ${RESOLVED} domein(en) proactief opgelost"
-EOF
-chmod +x /usr/local/bin/update-whitelist.sh
-ok "Whitelist script aangemaakt (/etc/whitelist.txt)"
+ok "Whitelist gedownload van GitHub (script volgt in stap 9b)"
 
 # =============================================================================
 # STAP 9: Docker
@@ -513,7 +481,7 @@ fi
 # =============================================================================
 info "Stap 9b: hulpscripts downloaden van GitHub..."
 _BASE_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main"
-for _SCRIPT in switch-uplink.sh logging_on.sh logging_off.sh; do
+for _SCRIPT in switch-uplink.sh logging_on.sh logging_off.sh update-whitelist.sh; do
     if curl -fsSL "${_BASE_URL}/${_SCRIPT}" -o "/usr/local/bin/${_SCRIPT}"; then
         chmod +x "/usr/local/bin/${_SCRIPT}"
         ok "${_SCRIPT} geïnstalleerd (/usr/local/bin/${_SCRIPT})"
