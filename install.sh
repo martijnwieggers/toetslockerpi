@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 5
+# versie 6
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -385,6 +385,17 @@ UPSTREAM=8.8.8.8
 systemctl restart dnsmasq
 COUNT=$(grep -c '^server=' "$OUTPUT" 2>/dev/null || echo 0)
 echo "Whitelist bijgewerkt: ${COUNT} domein(en) geladen"
+
+# Proactief alle domeinen oplossen zodat nftsets direct gevuld zijn
+# na een uplink-wissel — zonder dit moeten clients zelf een DNS-query
+# maken voordat hun IP in de nftset terechtkomt.
+RESOLVED=0
+while IFS= read -r domain || [ -n "$domain" ]; do
+    [[ -z "$domain" || "$domain" =~ ^# ]] && continue
+    domain="${domain#\*.}"
+    dig +short "$domain" @127.0.0.1 > /dev/null 2>&1 && RESOLVED=$((RESOLVED + 1)) || true
+done < "$WHITELIST"
+echo "nftsets gevuld: ${RESOLVED} domein(en) proactief opgelost"
 EOF
 chmod +x /usr/local/bin/update-whitelist.sh
 ok "Whitelist script aangemaakt (/etc/whitelist.txt)"
