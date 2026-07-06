@@ -1,4 +1,8 @@
 #!/bin/bash
+# Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
+# van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
+# temp-bestand en herstart van daaruit zodat stdin de terminal is.
+[ -t 0 ] || { T=$(mktemp); { printf '#!/bin/bash\n'; cat; } > "$T"; bash "$T"; EC=$?; rm -f "$T"; exit $EC; }
 # =============================================================================
 # ToetsLocker AP Setup Script
 # Raspberry Pi 5 — Raspberry Pi OS Lite (Debian Trixie)
@@ -34,18 +38,15 @@ if [[ -f /etc/toetslocker.conf ]]; then
     unset _v
 fi
 
-read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSID < /dev/tty
-SSID=${SSID:-$_DEF_SSID}
+read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSIDSSID=${SSID:-$_DEF_SSID}
 
 while true; do
-    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS < /dev/tty
-    WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
+    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS    WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
     [[ ${#WIFI_PASS} -ge 8 ]] && break
     warn "Minimaal 8 tekens vereist."
 done
 
-read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRY < /dev/tty
-COUNTRY=${COUNTRY:-$_DEF_COUNTRY}
+read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRYCOUNTRY=${COUNTRY:-$_DEF_COUNTRY}
 
 AP_IFACE="wlan1"
 AP_IP="192.168.50.1"
@@ -73,8 +74,7 @@ info "Land:     $COUNTRY"
 info "AP-IP:    $AP_IP ($AP_IFACE)"
 info "Uplink:   $UPLINK_IFACE"
 echo ""
-read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM < /dev/tty
-[[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
+read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM[[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
 echo ""
 
 # Instellingen persisteren voor switch-uplink.sh
@@ -502,14 +502,12 @@ except Exception:
         info "Bestaande ghcr.io login gevonden (gebruikersnaam niet leesbaar)"
     fi
 
-    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS < /dev/tty
-    [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
+    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS    [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
 fi
 
 if [[ "$DO_LOGIN" == true ]]; then
     echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
-    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER < /dev/tty
-    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN < /dev/tty; echo ""
+    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN < /dev/tty; echo ""
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
         || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
     unset GHCR_TOKEN
