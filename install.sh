@@ -483,12 +483,14 @@ except Exception:
         info "Bestaande ghcr.io login gevonden (gebruikersnaam niet leesbaar)"
     fi
 
-    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS    [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
+    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS
+    [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
 fi
 
 if [[ "$DO_LOGIN" == true ]]; then
     echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
-    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN < /dev/tty; echo ""
+    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER
+    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN < /dev/tty; echo ""
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
         || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
     unset GHCR_TOKEN
