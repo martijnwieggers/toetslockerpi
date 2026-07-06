@@ -67,7 +67,18 @@ arubanetworks.com
 neverssl.com
 example.com
 
-# Speedtest.net (Ookla)
+# Speedtest.net (Ookla) + Nederlandse ISP testservers
 speedtest.net
 ooklaserver.net
 ookla.com
+speedtest.ahm.vodafone.nl
+speedtest.breedband.nl
+speedtest.rtm.t-mobile.nl
+speedtest.previder.net
+ookla.snt.utwente.nl
+speedtest.vanberkelgroep.nl
+speedtest.matrixdata.nl
+speedtest-ens-nl.as215248.net
+sp1.jonaz.nl
+speedtest.trined.nl
+nl.altushost.com
