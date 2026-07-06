@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 4
+# versie 5
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -543,7 +543,18 @@ check_and_switch() {
     eth_carrier=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
 
     if [[ "$eth_carrier" == "1" ]] && [[ "$UPLINK_IFACE" != "eth0" ]]; then
-        _log "eth0 carrier aanwezig — wisselen naar eth0"
+        # Wacht tot eth0 een IP heeft (DHCP gereed), max 30 seconden
+        local retries=0 eth_ip=""
+        while [[ $retries -lt 15 ]]; do
+            eth_ip=$(ip -4 addr show eth0 2>/dev/null | awk '/inet /{print $2; exit}')
+            [[ -n "$eth_ip" ]] && break
+            sleep 2; retries=$((retries + 1))
+        done
+        if [[ -z "$eth_ip" ]]; then
+            _log "eth0 carrier aanwezig maar geen IP na 30s — wisselen geannuleerd"
+            return
+        fi
+        _log "eth0 carrier aanwezig en IP=${eth_ip} — wisselen naar eth0"
         "$SWITCH" eth0 || _log "Fout bij wisselen naar eth0"
     elif [[ "$eth_carrier" != "1" ]] && [[ "$UPLINK_IFACE" != "wlan0" ]]; then
         _log "eth0 carrier weg — wisselen naar wlan0"
