@@ -355,35 +355,11 @@ ok "nftables geconfigureerd"
 # =============================================================================
 info "Stap 8: Whitelist instellen..."
 
-cat > /etc/whitelist.txt << 'EOF'
-# Whitelist voor ToetsLocker AP
-# Één domein per regel — subdomains worden automatisch meegenomen
-# Commentaar begint met #
-
-# Apple captive portal (vereist voor iOS-verbinding)
-apple.com
-captive.apple.com
-
-# Windows captive portal
-www.msftconnecttest.com
-
-# itsLearning
-graafschapcollege.itslearning.com
-cdn.itslearning.com
-filerepository.itslearning.com
-proxy.itslearning.com
-filecache.itslearning.com
-eu1-filerepo-1436663729.eu-central-1.elb.amazonaws.com
-eu1.itslearning.com
-platform.itslearning.com
-
-# Microsoft authenticatie (SSO via itsLearning)
-login.microsoftonline.com
-login.mso.msidentity.com
-aadcdn.msauth.net
-aadcdn.msauthimages.net
-autologon.microsoftazuread-sso.com
-EOF
+_WL_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/whitelist.txt"
+curl -fsSL "$_WL_URL" -o /etc/whitelist.txt \
+    || fail "Kon whitelist.txt niet downloaden van GitHub: $_WL_URL"
+unset _WL_URL
+ok "Whitelist gedownload van GitHub"
 
 cat > /usr/local/bin/update-whitelist.sh << 'EOF'
 #!/bin/bash
