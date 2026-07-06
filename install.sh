@@ -13,11 +13,6 @@ fail() { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
 
 [[ $EUID -ne 0 ]] && fail "Voer uit als root: sudo $0"
 
-# Bij curl | bash leest bash het script via stdin — read-prompts ook.
-# Omleiding naar /dev/tty zorgt dat interactieve input altijd van de
-# terminal komt, ook als het script gepiped wordt.
-[[ -t 0 ]] || exec < /dev/tty
-
 # =============================================================================
 # CONFIGURATIE
 # =============================================================================
@@ -39,17 +34,17 @@ if [[ -f /etc/toetslocker.conf ]]; then
     unset _v
 fi
 
-read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSID
+read -rp "WiFi netwerknaam (SSID) [${_DEF_SSID}]: " SSID < /dev/tty
 SSID=${SSID:-$_DEF_SSID}
 
 while true; do
-    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS
+    read -rp "WiFi wachtwoord (min. 8 tekens) [${_DEF_PASS:-nieuw invoeren}]: " WIFI_PASS < /dev/tty
     WIFI_PASS=${WIFI_PASS:-$_DEF_PASS}
     [[ ${#WIFI_PASS} -ge 8 ]] && break
     warn "Minimaal 8 tekens vereist."
 done
 
-read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRY
+read -rp "Landcode [${_DEF_COUNTRY}]: " COUNTRY < /dev/tty
 COUNTRY=${COUNTRY:-$_DEF_COUNTRY}
 
 AP_IFACE="wlan1"
@@ -78,7 +73,7 @@ info "Land:     $COUNTRY"
 info "AP-IP:    $AP_IP ($AP_IFACE)"
 info "Uplink:   $UPLINK_IFACE"
 echo ""
-read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM
+read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM < /dev/tty
 [[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
 echo ""
 
@@ -507,14 +502,14 @@ except Exception:
         info "Bestaande ghcr.io login gevonden (gebruikersnaam niet leesbaar)"
     fi
 
-    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS
+    read -rp "Nieuwe credentials invoeren? [j/N]: " NEW_CREDS < /dev/tty
     [[ "${NEW_CREDS,,}" == "j" ]] || { DO_LOGIN=false; ok "Bestaande ghcr.io credentials worden gebruikt"; }
 fi
 
 if [[ "$DO_LOGIN" == true ]]; then
     echo "  Maak een PAT aan op https://github.com/settings/tokens → New token → scope: read:packages"
-    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER
-    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN; echo ""
+    read -rp  "  GitHub gebruikersnaam (eigenaar van het PAT token): " GHCR_USER < /dev/tty
+    read -rsp "  GitHub PAT token (read:packages): " GHCR_TOKEN < /dev/tty; echo ""
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin \
         || fail "Docker login mislukt — controleer gebruikersnaam en token en probeer opnieuw"
     unset GHCR_TOKEN
