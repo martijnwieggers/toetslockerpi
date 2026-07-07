@@ -17,9 +17,16 @@ systemctl restart dnsmasq
 COUNT=$(grep -c '^server=' "$OUTPUT" 2>/dev/null || echo 0)
 echo "Whitelist bijgewerkt: ${COUNT} domein(en) geladen"
 
-# Proactief alle domeinen oplossen zodat nftsets direct gevuld zijn
-# na een uplink-wissel — zonder dit moeten clients zelf een DNS-query
-# maken voordat hun IP in de nftset terechtkomt.
+# Wacht tot dnsmasq daadwerkelijk antwoordt (max 10s) — direct na de
+# restart kan het REFUSED teruggeven en dan blijft de refill leeg.
+for _ in $(seq 1 20); do
+    dig +short +time=1 +tries=1 toetslocker.lan @127.0.0.1 > /dev/null 2>&1 && break
+    sleep 0.5
+done
+
+# Proactief alle domeinen oplossen zodat de nftsets direct gevuld zijn
+# — zonder dit moeten clients zelf een DNS-query maken voordat hun
+# doel-IP in de nftset terechtkomt.
 RESOLVED=0
 while IFS= read -r domain || [ -n "$domain" ]; do
     [[ -z "$domain" || "$domain" =~ ^# ]] && continue

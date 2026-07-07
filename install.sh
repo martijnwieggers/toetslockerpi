@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 7
+# versie 8
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -99,7 +99,7 @@ ok "Configuratie opgeslagen (/etc/toetslocker.conf)"
 info "Stap 1: Packages installeren..."
 apt-get update -qq
 apt-get install -y -qq \
-    curl wget git vim iw net-tools usbutils dnsutils tcpdump \
+    curl wget git vim iw net-tools usbutils dnsutils tcpdump conntrack \
     hostapd dnsmasq nftables docker.io docker-compose
 ok "Packages geïnstalleerd"
 
@@ -269,15 +269,12 @@ ok "DNS 8.8.8.8 ingesteld voor alle NetworkManager-verbindingen"
 # =============================================================================
 info "Stap 7: nftables firewall..."
 
-# De actieve uplink wordt opgeslagen in een apart include-bestand.
-# switch-uplink.sh hoeft dan alleen dit bestand te overschrijven en
-# nftables te herladen — de rest van nftables.conf blijft ongewijzigd.
-mkdir -p /etc/nftables.d
-echo "define UPLINK = ${UPLINK_IFACE}" > /etc/nftables.d/uplink.conf
-
+# De firewall staat beide uplinks (eth0 én wlan0) toe; de kernel-routingtabel
+# bepaalt welke daadwerkelijk gebruikt wordt (eth0 wint via lagere metric).
+# Wisselen van uplink vereist daardoor géén nftables-reload, zodat de
+# allowed_ips/captive_bypass sets gevuld blijven en er geen blackout is.
 cat > /etc/nftables.conf << EOF
 #!/usr/sbin/nft -f
-include "/etc/nftables.d/uplink.conf"
 
 # Verwijder alleen onze eigen tabellen; Docker's nat/filter tabellen blijven intact
 table ip custom_nat {}
@@ -306,7 +303,7 @@ table ip custom_nat {
     }
     chain postrouting {
         type nat hook postrouting priority srcnat;
-        oifname \$UPLINK masquerade;
+        oifname { "eth0", "wlan0" } masquerade;
     }
 }
 
@@ -337,9 +334,10 @@ table inet filter {
         type filter hook forward priority filter; policy drop;
         ct state established,related accept
         ct state invalid drop
-        # Studenten naar internet: alleen whitelist IPs via actieve uplink
-        iifname "${AP_IFACE}" oifname \$UPLINK ip daddr @allowed_ips tcp dport { 80, 443 } accept
-        iifname "${AP_IFACE}" oifname \$UPLINK ip daddr @allowed_ips udp dport 443 accept
+        # Studenten naar internet: alleen whitelist IPs, via beide uplinks
+        # (routing bepaalt welke actief is — geen reload nodig bij wissel)
+        iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips tcp dport { 80, 443 } accept
+        iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips udp dport 443 accept
         # Docker container: altijd bereikbaar via AP én beide beheerinterfaces
         iifname "${AP_IFACE}" oifname "docker0" tcp dport { 80, 8080 } accept
         iifname "eth0"        oifname "docker0" tcp dport { 80, 8080 } accept
@@ -364,9 +362,7 @@ _WL_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/wh
 curl -fsSL "$_WL_URL" -o /etc/whitelist.txt \
     || fail "Kon whitelist.txt niet downloaden van GitHub: $_WL_URL"
 unset _WL_URL
-ok "Whitelist gedownload van GitHub"
-
-ok "Whitelist gedownload van GitHub (script volgt in stap 9b)"
+ok "Whitelist gedownload van GitHub (update-script volgt in stap 9b)"
 
 # =============================================================================
 # STAP 9: Docker
@@ -503,52 +499,50 @@ rm -f /etc/systemd/system/auto-uplink.service \
 
 cat > /usr/local/bin/uplink-monitor.sh << 'SCRIPT'
 #!/bin/bash
-# Bewaakt eth0 carrier en wisselt masquerade-uplink in realtime.
-# eth0 met carrier → eth0; anders → wlan0.
-# switch-uplink.sh herlaadt nftables + whitelist zodat de allowed_ips set
-# altijd actief blijft op de juiste interface.
+# Bewaakt eth0 carrier en logt uplink-wissels. De firewall staat beide
+# uplinks toe en de kernel-routing kiest automatisch (eth0 boven wlan0
+# via metrics) — er hoeft dus niets herladen te worden bij een wissel.
+# Wel worden stale conntrack-entries van het studentensubnet geflusht,
+# zodat oude verbindingen (ge-NAT via de vorige uplink) direct sneuvelen
+# in plaats van te blijven hangen tot een TCP-timeout.
 
 CONF=/etc/toetslocker.conf
-SWITCH=/usr/local/bin/switch-uplink.sh
 
 _log() { logger -t uplink-monitor "$1"; echo "[uplink-monitor] $1"; }
 
-check_and_switch() {
+current_uplink() {
+    local carrier
+    carrier=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+    [[ "$carrier" == "1" ]] && echo "eth0" || echo "wlan0"
+}
+
+handle_change() {
     [[ -f "$CONF" ]] || return
-    # Herlaad conf zodat UPLINK_IFACE altijd de huidige waarde heeft
     # shellcheck source=/dev/null
     source "$CONF"
-    local eth_carrier
-    eth_carrier=$(cat /sys/class/net/eth0/carrier 2>/dev/null || echo 0)
+    local new_uplink
+    new_uplink=$(current_uplink)
+    [[ "${UPLINK_IFACE:-}" == "$new_uplink" ]] && return
 
-    if [[ "$eth_carrier" == "1" ]] && [[ "$UPLINK_IFACE" != "eth0" ]]; then
-        # Wacht tot eth0 een IP heeft (DHCP gereed), max 30 seconden
-        local retries=0 eth_ip=""
-        while [[ $retries -lt 15 ]]; do
-            eth_ip=$(ip -4 addr show eth0 2>/dev/null | awk '/inet /{print $2; exit}')
-            [[ -n "$eth_ip" ]] && break
-            sleep 2; retries=$((retries + 1))
-        done
-        if [[ -z "$eth_ip" ]]; then
-            _log "eth0 carrier aanwezig maar geen IP na 30s — wisselen geannuleerd"
-            return
-        fi
-        _log "eth0 carrier aanwezig en IP=${eth_ip} — wisselen naar eth0"
-        "$SWITCH" eth0 || _log "Fout bij wisselen naar eth0"
-    elif [[ "$eth_carrier" != "1" ]] && [[ "$UPLINK_IFACE" != "wlan0" ]]; then
-        _log "eth0 carrier weg — wisselen naar wlan0"
-        "$SWITCH" wlan0 || _log "Fout bij wisselen naar wlan0"
+    _log "uplink gewisseld: ${UPLINK_IFACE:-onbekend} → ${new_uplink}"
+    sed -i "s/^UPLINK_IFACE=.*/UPLINK_IFACE=${new_uplink}/" "$CONF"
+
+    # Oude NAT-flows wijzen naar het IP van de vorige uplink
+    local ap_net="${AP_IP%.*}.0/24"
+    if command -v conntrack >/dev/null 2>&1; then
+        conntrack -D -s "$ap_net" >/dev/null 2>&1 || true
+        _log "conntrack-entries ${ap_net} geflusht"
     fi
 }
 
 # Initiële controle bij opstart
-check_and_switch
+handle_change
 
 # Realtime bewaking via kernel netlink events
 ip monitor link 2>/dev/null | while IFS= read -r line; do
     if [[ "$line" == *"eth0"* ]]; then
         sleep 2  # Wacht tot kernel carrier-bestand is bijgewerkt
-        check_and_switch
+        handle_change
     fi
 done
 SCRIPT
@@ -678,7 +672,7 @@ echo "  Container       : http://toetslocker.lan"
 echo ""
 echo "  Whitelist bewerken : sudo nano /etc/whitelist.txt"
 echo "  Whitelist herladen : sudo /usr/local/bin/update-whitelist.sh"
-echo "  Wissel uplink      : sudo switch-uplink.sh eth0   (of wlan0)"
+echo "  Uplink status      : sudo switch-uplink.sh   (wisselen gaat automatisch)"
 echo ""
 echo "  Herstart de Pi voor cgroup-geheugenlimieten (Docker)."
 echo ""
