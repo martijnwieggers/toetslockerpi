@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-06-26
+Bijgewerkt: 2026-07-07
 
 ---
 
@@ -48,26 +48,22 @@ De Pi werkt met twee mogelijke uplinks. De keuze wordt bij iedere opstart én bi
 
 ### Hoe het werkt
 
-**`uplink-monitor.service`** draait continu als systemd-service. Bij opstart doet hij een initiële controle; daarna luistert hij via `ip monitor link` naar kernel-events. Zodra eth0 van carrier wisselt, reageert de service binnen ~2 seconden.
+De firewall is **uplink-onafhankelijk**: alle nftables-regels staan beide uplinks tegelijk toe (`oifname { "eth0", "wlan0" }`). De kernel-routing bepaalt welke daadwerkelijk gebruikt wordt — eth0 wint van wlan0 via een lagere route-metric zodra er een kabel met carrier in zit. Bij een wissel hoeft er dus **niets herladen** te worden: geen nftables-reload, geen dnsmasq-herstart, geen whitelist-refresh.
 
-Bij elke wisseling roept de monitor **`switch-uplink.sh`** aan. Dit script:
-1. Schrijft de nieuwe uplink naar `/etc/nftables.d/uplink.conf` (`define UPLINK = eth0` of `wlan0`)
-2. Herlaadt nftables — alleen onze eigen tabellen worden ververst, Docker's tabellen blijven intact
-3. Herlaadt de whitelist (`update-whitelist.sh`) zodat de `allowed_ips` set direct actief is op de nieuwe interface
+**`uplink-monitor.service`** draait continu als systemd-service. Bij opstart doet hij een initiële controle; daarna luistert hij via `ip monitor link` naar kernel-events. Zodra eth0 van carrier wisselt, doet de monitor binnen ~2 seconden:
+1. Logt de wissel en werkt `UPLINK_IFACE` bij in `/etc/toetslocker.conf` (puur registratie)
+2. Flusht conntrack-entries van het studentensubnet, zodat oude verbindingen (ge-NAT via de vorige uplink) direct sneuvelen in plaats van te blijven hangen tot een TCP-timeout
 
-**Handmatig wisselen** (bijv. voor testen):
+**Handmatig wisselen is vervallen** — trek de kabel eruit om terug te vallen op wlan0, of plug hem in voor eth0. `switch-uplink.sh` bestaat nog, maar toont alleen de status:
 ```bash
-sudo switch-uplink.sh eth0    # forceer ethernet
-sudo switch-uplink.sh wlan0   # forceer WiFi
-sudo switch-uplink.sh         # toon huidige instelling
+sudo switch-uplink.sh    # toont carrier, IP en actieve default route per uplink
 ```
 
 **Status bekijken:**
 ```bash
 systemctl status uplink-monitor
 journalctl -t uplink-monitor -n 20
-cat /etc/nftables.d/uplink.conf    # toont actieve uplink
-cat /etc/toetslocker.conf          # toont volledige config
+cat /etc/toetslocker.conf          # toont geregistreerde config
 ```
 
 ---
@@ -115,10 +111,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | Bestand | Beschrijving |
 |---------|-------------|
 | `C:\Claude\pi-install\install.sh` | Volledig idempotent installatiescript (voor verse Pi) |
-| `C:\Claude\pi-install\switch-uplink.sh` | Wisselt actieve uplink (eth0/wlan0) en herlaadt nftables + whitelist |
-| `C:\Claude\pi-install\kopieren-naar-pi.cmd` | Kopieert install.sh, switch-uplink.sh, logging_on.sh en logging_off.sh naar Pi via scp; zet daarna +x |
+| `C:\Claude\pi-install\switch-uplink.sh` | Toont uplink-status (carrier, IP, default route) — handmatig wisselen is vervallen |
+| `C:\Claude\pi-install\update-whitelist.sh` | Genereert whitelist.conf, herstart dnsmasq en vult nftsets proactief |
+| `C:\Claude\pi-install\whitelist-sync.sh` | Haalt whitelist.txt van GitHub; past alleen toe bij wijziging (draait via timer) |
 | `C:\Claude\pi-install\windows_ics.ps1` | PowerShell script voor Windows ICS instellen (uitvoeren als Administrator) |
-| `C:\Claude\pi-install\whitelist.txt` | Lokale kopie van de domeinwhitelist |
+| `C:\Claude\pi-install\whitelist.txt` | Bron van de domeinwhitelist — install.sh downloadt deze van GitHub |
 | `C:\Claude\pi-install\commandos.md` | Stap-voor-stap commandolog (stappen 1–12) |
 | `C:\Claude\pi-install\status.md` | Dit bestand |
 
@@ -135,16 +132,18 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/etc/dnsmasq.d/ap.conf` | DHCP + DNS basisconfig |
 | `/etc/dnsmasq.d/whitelist.conf` | Automatisch gegenereerd door update-whitelist.sh |
 | `/etc/whitelist.txt` | Domeinwhitelist (handmatig bewerken) |
-| `/usr/local/bin/update-whitelist.sh` | Whitelist herladen + dnsmasq herstarten |
-| `/etc/nftables.conf` | Firewall (NAT + filter) — gebruikt include voor uplink |
-| `/etc/nftables.d/uplink.conf` | Actieve uplink definitie (`define UPLINK = eth0` of `wlan0`) |
+| `/usr/local/bin/update-whitelist.sh` | Whitelist herladen: dnsmasq herstarten + nftsets proactief vullen |
+| `/usr/local/bin/whitelist-sync.sh` | Whitelist ophalen van GitHub; alleen toepassen bij wijziging |
+| `/etc/systemd/system/whitelist-sync.service` | Oneshot: draait whitelist-sync.sh |
+| `/etc/systemd/system/whitelist-sync.timer` | Bij boot (+2 min) en daarna elke 15 min |
+| `/etc/nftables.conf` | Firewall (NAT + filter) — uplink-onafhankelijk, beide uplinks toegestaan |
 | `/etc/sysctl.d/99-ipforward.conf` | IP forwarding permanent |
 | `/etc/systemd/system/docker.service.d/after-nftables.conf` | Docker start na nftables |
 | `/etc/systemd/system/dnsmasq.service.d/override.conf` | dnsmasq start na wlan1-setup |
 | `/etc/systemd/system/uplink-monitor.service` | Realtime uplink-bewaking (eth0/wlan0) |
 | `/etc/systemd/system/toetslocker.service` | Pull latest image + start container bij iedere opstart |
-| `/usr/local/bin/uplink-monitor.sh` | Daemon: ip monitor link + switch-uplink.sh |
-| `/usr/local/bin/switch-uplink.sh` | Wisselt uplink: schrijft uplink.conf, herlaadt nftables + whitelist |
+| `/usr/local/bin/uplink-monitor.sh` | Daemon: logt uplink-wissels + flusht conntrack via ip monitor link |
+| `/usr/local/bin/switch-uplink.sh` | Toont uplink-status (handmatig wisselen is vervallen) |
 | `/usr/local/bin/logging_on.sh` | DNS query-logging inschakelen (schrijft naar /var/log/dnsmasq.log) |
 | `/usr/local/bin/logging_off.sh` | DNS query-logging uitschakelen |
 | `/etc/toetslocker/docker-compose.yml` | Docker Compose voor gctoetslocking app |
@@ -164,6 +163,7 @@ docker           active + enabled
 wlan1-setup      active + enabled
 uplink-monitor   active + enabled
 toetslocker      active + enabled   (pull latest image + start bij opstart)
+whitelist-sync   timer enabled      (boot +2 min, daarna elke 15 min)
 ```
 
 ---
@@ -208,9 +208,9 @@ Student (wlan1) → nftables FORWARD → $UPLINK (eth0 of wlan0) → internet
 Twee lagen sturen dit:
 
 1. **Linux routing table** — NetworkManager geeft eth0 automatisch een lagere metric dan wlan0. Zolang eth0 carrier heeft, is het de default route.
-2. **nftables FORWARD chain** — heeft `policy drop` en laat uitsluitend `iifname "wlan1" oifname $UPLINK` door. Zelfs als de routing table via de verkeerde interface wil sturen, blokkeert nftables het.
+2. **nftables FORWARD chain** — heeft `policy drop` en laat uitsluitend `iifname "wlan1" oifname { "eth0", "wlan0" }` naar whitelisted IPs door. Beide uplinks zijn permanent toegestaan; de routing table bepaalt welke daadwerkelijk gebruikt wordt.
 
-`switch-uplink.sh` houdt beide lagen synchroon: het schrijft de nftables `$UPLINK` variabele én herlaadt de whitelist. wlan0 blijft altijd verbonden zodat failover direct werkt (alleen een nftables herlaad, geen WiFi-herverbinding).
+Bij een uplink-wissel hoeft er niets herladen te worden — de firewall is uplink-onafhankelijk. `uplink-monitor.sh` registreert de wissel alleen in `/etc/toetslocker.conf` en flusht stale conntrack-entries. wlan0 blijft altijd verbonden zodat failover direct werkt (geen WiFi-herverbinding nodig).
 
 ### nftables: table ip custom_nat (priority -150)
 Docker draait zijn eigen `table ip nat` op priority -100. Als onze NAT-tabel ook op -100 staat, blokkeert die Docker's DNAT voor de container. Oplossing: onze prerouting-chain draait op **priority -150** (eerder dan Docker), zodat DNS-redirect werkt én Docker's DNAT daarna nog kan vuren.
@@ -218,12 +218,8 @@ Docker draait zijn eigen `table ip nat` op priority -100. Als onze NAT-tabel ook
 ### nftables: selectieve flush — Docker-tabellen blijven intact
 `nftables.conf` doet **geen** `flush ruleset` meer. In plaats daarvan worden alleen onze eigen tabellen (`table ip custom_nat` en `table inet filter`) verwijderd en opnieuw aangemaakt. Docker's `table ip nat` en `table ip filter` (aangemaakt via iptables-nft) worden nooit aangeraakt. Dit voorkomt dat Docker's DNAT-regels verdwijnen bij een nftables-herstart.
 
-### nftables: uplink als variabele via include
-De actieve uplink staat in `/etc/nftables.d/uplink.conf`:
-```
-define UPLINK = eth0
-```
-`nftables.conf` leest dit via `include "/etc/nftables.d/uplink.conf"` en gebruikt `$UPLINK` in de masquerade- en whitelist-forwardregels. `switch-uplink.sh` hoeft alleen dit kleine bestand te overschrijven en nftables te herladen — `nftables.conf` zelf wordt nooit gewijzigd.
+### nftables: uplink-onafhankelijke firewall
+De firewall gebruikt geen `$UPLINK`-variabele meer. Masquerade- en whitelist-forwardregels noemen beide uplinks expliciet (`oifname { "eth0", "wlan0" }`), zodat een uplink-wissel geen nftables-reload vereist. De nftsets (`allowed_ips`, `captive_bypass`) blijven daardoor ook gevuld bij een wissel — er is geen dnsmasq-herstart die ze zou legen. Het vroegere `/etc/nftables.d/uplink.conf` bestaat niet meer.
 
 ### Docker FORWARD-regel
 De nftables FORWARD chain heeft policy drop. Docker-verkeer wordt doorgelaten via hardcoded regels voor **alle drie beheerinterfaces**:
@@ -237,7 +233,7 @@ Deze regels veranderen nooit bij een uplink-wissel. De container is altijd berei
 ### DNS whitelist via dnsmasq --nftset
 dnsmasq 2.91+ ondersteunt `nftset=/<domain>/4#inet#filter#allowed_ips`. Bij elke DNS-lookup van een whitelisted domein wordt het resolved IP automatisch in de nftables set `allowed_ips` gezet (timeout 1h). Niet-whiteliste domeinen krijgen REFUSED. Direct IP-verkeer wordt geblokkeerd door FORWARD policy drop.
 
-Na een uplink-wissel wordt de whitelist automatisch herladen (`update-whitelist.sh`) zodat de `allowed_ips` set direct actief is op de nieuwe interface.
+De whitelist wordt alleen herladen tijdens installatie en handmatig via `update-whitelist.sh` (na het bewerken van `/etc/whitelist.txt`). Het script genereert `whitelist.conf`, herstart dnsmasq en lost daarna proactief alle domeinen op via `dig @127.0.0.1`, zodat de nftsets direct gevuld zijn zonder dat clients eerst zelf een DNS-query hoeven te doen. Een uplink-wissel raakt de whitelist niet — de firewall is uplink-onafhankelijk.
 
 ### Geen healthcheck in docker-compose.yml
 De `healthcheck` is verwijderd. Het .NET container image bevat geen `curl`, waardoor de healthcheck altijd faalde met `executable file not found` — ook als de app prima draaide. `docker ps` toont de container als `Up` (zonder `(healthy)`). Automatisch herstarten werkt via `restart: unless-stopped`.
@@ -255,22 +251,32 @@ dnsmasq luistert alleen op `wlan1` (`bind-interfaces`), dus de Pi zelf gebruikt 
 
 ## Whitelist beheren
 
-```bash
-# Domeinen toevoegen:
-sudo nano /etc/whitelist.txt
+**Aanbevolen werkwijze:** bewerk `whitelist.txt` in deze repo en push naar GitHub. De `whitelist-sync.timer` op de Pi haalt het bestand bij elke boot (+2 min) en daarna elke 15 minuten op. Alleen bij een daadwerkelijke wijziging wordt de whitelist toegepast (dnsmasq-herstart + nftsets proactief vullen); een ongewijzigd bestand doet niets. De download wordt gevalideerd (niet leeg + vaste headerregel) en de vorige versie blijft staan als `/etc/whitelist.txt.bak`.
 
-# Whitelist herladen:
+```bash
+# Sync-status en log bekijken:
+systemctl list-timers whitelist-sync.timer
+journalctl -u whitelist-sync -n 20
+
+# Direct synchroniseren (zonder op de timer te wachten):
+sudo systemctl start whitelist-sync.service
+
+# Handmatig (lokaal, zonder GitHub):
+sudo nano /etc/whitelist.txt
 sudo /usr/local/bin/update-whitelist.sh
+# Let op: lokale wijzigingen worden bij de volgende sync overschreven
+# zodra de GitHub-versie afwijkt.
 
 # Huidige allowed IPs bekijken:
 sudo nft list set inet filter allowed_ips
 ```
 
-Huidig in whitelist.txt:
-- `apple.com` + `captive.apple.com` — iOS captive portal
-- `www.msftconnecttest.com` — Windows captive portal
-- `graafschapcollege.itslearning.com`, `cdn.itslearning.com`, `filerepository.itslearning.com`, `proxy.itslearning.com`, `filecache.itslearning.com`, `eu1.itslearning.com`, `platform.itslearning.com`, `eu1-filerepo-1436663729.eu-central-1.elb.amazonaws.com` — itsLearning
-- `login.microsoftonline.com`, `login.mso.msidentity.com`, `aadcdn.msauth.net`, `aadcdn.msauthimages.net`, `autologon.microsoftazuread-sso.com` — Microsoft authenticatie (SSO)
+Huidig in whitelist.txt (zie `whitelist.txt` in deze repo voor de actuele lijst — install.sh downloadt die van GitHub):
+- itsLearning: `graafschapcollege.itslearning.com`, `cdn.itslearning.com`, `filerepository.itslearning.com`, `proxy.itslearning.com`, `filecache.itslearning.com`, `eu1.itslearning.com`, `platform.itslearning.com`, `eu1-filerepo-1436663729.eu-central-1.elb.amazonaws.com`
+- Microsoft authenticatie (SSO): `login.microsoftonline.com`, `login.mso.msidentity.com`, `aadcdn.msauth.net`, `aadcdn.msauthimages.net`, `autologon.microsoftazuread-sso.com`, `mysignins.microsoft.com`
+- Captive-portal-detectie per platform: Windows (`www.msftconnecttest.com`, `www.msftncsi.com`, `dns.msftncsi.com`), Apple (`captive.apple.com`, `www.apple.com`, plus de iOS-fallback-probes `www.appleiphonecell.com`, `www.itools.info`, `www.ibook.info`, `www.airport.us`, `www.thinkdifferent.us`, tijdsync `time.apple.com`/`time-ios.apple.com` en certificaatcontrole `ocsp.apple.com`/`ocsp2.apple.com`), Android/ChromeOS (`clients3.google.com`, `connectivitycheck.gstatic.com`, `connectivitycheck.android.com`), plus GNOME, Ubuntu, KDE, Firefox, Kindle, Huawei, Xiaomi, Meraki en Aruba
+- Test/helper: `neverssl.com`, `example.com`
+- Snelheidstest: `cloudflare.com` (Cloudflare speed test)
 
 ---
 
@@ -324,7 +330,7 @@ sudo grep REFUSED /var/log/dnsmasq.log
 - [x] Reboot-test uitvoeren om te bevestigen dat alles automatisch start
 - [x] Dubbele uplink: eth0 (voorkeur) + wlan0 (fallback) met realtime bewaking
 - [ ] WPA3 toevoegen aan hostapd.conf (indien USB adapter dat ondersteunt)
-- [ ] HTTPS captive portal pagina bouwen (nu plain nginx placeholder)
+- [ ] HTTPS captive portal pagina bouwen (nu de gctoetslocking-app op poort 80)
 - [x] Logging: standaard UIT; `logging_on.sh` / `logging_off.sh` geïnstalleerd in `/usr/local/bin/`
 - [x] SSH key beheer script klaar (ssh-key-beheer.sh): aanmaken, tonen, verwijderen + automatische GitHub SSH config
 
@@ -332,20 +338,17 @@ sudo grep REFUSED /var/log/dnsmasq.log
 
 ## Installatiescript gebruiken op verse Pi
 
-**Optie A — via het CMD-script (aanbevolen):**
-
-Dubbelklik op `kopieren-naar-pi.cmd` in de `C:\Claude\pi-install` map.  
-Het script vraagt om IP-adres en gebruikersnaam, kopieert beide bestanden via scp en zet automatisch +x.
-
-**Optie B — handmatig:**
+**Optie A — direct vanaf GitHub (aanbevolen):**
 
 ```bash
-# Script kopiëren naar Pi (vanuit Windows):
-scp C:\Claude\pi-install\install.sh C:\Claude\pi-install\switch-uplink.sh <gebruiker>@<pi-ip>:~/
-
-# Op de Pi uitvoeren:
-chmod +x install.sh switch-uplink.sh
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh | sudo bash
 ```
 
-Het script detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord en landcode.
+**Optie B — eerst downloaden, dan uitvoeren:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh -o install.sh
+sudo bash install.sh
+```
+
+Het script downloadt zelf de hulpscripts (`switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`) en de whitelist van GitHub, detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord en landcode.
