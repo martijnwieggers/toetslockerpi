@@ -21,19 +21,14 @@ Raspberry Pi access point met captive portal voor gebruik in de klas.
 
 ## Installeren
 
-Voer het volgende commando uit op de Raspberry Pi:
+Voer de volgende commando's uit op de Raspberry Pi:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh -o install.sh
+sudo bash install.sh
 ```
 
 Het script downloadt automatisch alle benodigde hulpscripts en installeert alles in één keer.
-
-> **Werkt het bovenstaande niet?** Gebruik dan de twee-stappen variant:
-> ```bash
-> curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh -o install.sh
-> sudo bash install.sh
-> ```
 
 ---
 
