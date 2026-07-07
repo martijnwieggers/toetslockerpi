@@ -29,6 +29,18 @@ dns.msftncsi.com
 # Apple
 captive.apple.com
 www.apple.com
+# iOS captive-detectie fallback-domeinen (iOS kiest willekeurig uit deze pool)
+www.appleiphonecell.com
+www.itools.info
+www.ibook.info
+www.airport.us
+www.thinkdifferent.us
+# Apple tijdsync (scheve klok breekt TLS)
+time.apple.com
+time-ios.apple.com
+# Apple certificaatcontrole (voorkomt trage TLS-handshakes op iOS)
+ocsp.apple.com
+ocsp2.apple.com
 
 # Google / Android / ChromeOS
 clients3.google.com
