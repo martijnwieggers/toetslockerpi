@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 8
+# versie 9
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -477,7 +477,7 @@ fi
 # =============================================================================
 info "Stap 9b: hulpscripts downloaden van GitHub..."
 _BASE_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main"
-for _SCRIPT in switch-uplink.sh logging_on.sh logging_off.sh update-whitelist.sh; do
+for _SCRIPT in switch-uplink.sh logging_on.sh logging_off.sh update-whitelist.sh whitelist-sync.sh; do
     if curl -fsSL "${_BASE_URL}/${_SCRIPT}" -o "/usr/local/bin/${_SCRIPT}"; then
         chmod +x "/usr/local/bin/${_SCRIPT}"
         ok "${_SCRIPT} geïnstalleerd (/usr/local/bin/${_SCRIPT})"
@@ -599,6 +599,39 @@ systemctl enable toetslocker.service
 ok "toetslocker.service aangemaakt en ingeschakeld"
 
 # =============================================================================
+# STAP 9e: whitelist-sync timer (periodiek verversen vanaf GitHub)
+# =============================================================================
+info "Stap 9e: whitelist-sync timer aanmaken..."
+
+cat > /etc/systemd/system/whitelist-sync.service << 'EOF'
+[Unit]
+Description=Whitelist synchroniseren vanaf GitHub
+Wants=network-online.target
+After=network-online.target dnsmasq.service nftables.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/whitelist-sync.sh
+EOF
+
+cat > /etc/systemd/system/whitelist-sync.timer << 'EOF'
+[Unit]
+Description=Periodieke whitelist-sync vanaf GitHub
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable whitelist-sync.timer
+ok "whitelist-sync.timer aangemaakt (bij boot + elke 15 min; past alleen toe bij wijziging)"
+
+# =============================================================================
 # STAP 10: Services starten
 # =============================================================================
 info "Stap 10: Services starten..."
@@ -612,6 +645,7 @@ systemctl restart dnsmasq
 systemctl restart docker
 sleep 3
 systemctl restart uplink-monitor
+systemctl restart whitelist-sync.timer
 
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
@@ -635,7 +669,7 @@ echo " Eindcontrole"
 echo "============================================"
 
 ERRORS=0
-for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker; do
+for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker whitelist-sync.timer; do
     if [[ "$(systemctl is-active "$svc")" == "active" ]]; then
         ok "$svc actief"
     else
@@ -670,8 +704,9 @@ echo "  IP-adres        : ${AP_IP}"
 echo "  Adapter profiel : $(basename "${HOSTAPD_CONF}")"
 echo "  Container       : http://toetslocker.lan"
 echo ""
-echo "  Whitelist bewerken : sudo nano /etc/whitelist.txt"
-echo "  Whitelist herladen : sudo /usr/local/bin/update-whitelist.sh"
+echo "  Whitelist bewerken : push naar GitHub — de Pi haalt hem binnen 15 min op"
+echo "                       (of lokaal: sudo nano /etc/whitelist.txt + update-whitelist.sh)"
+echo "  Whitelist sync log : journalctl -u whitelist-sync"
 echo "  Uplink status      : sudo switch-uplink.sh   (wisselen gaat automatisch)"
 echo ""
 echo "  Herstart de Pi voor cgroup-geheugenlimieten (Docker)."
