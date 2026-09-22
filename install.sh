@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 18
+# versie 19
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -352,14 +352,14 @@ table inet filter {
         iif "lo" accept
         iifname "eth0"  accept
         iifname "wlan0" accept
-        # Docker-containers → host (gctoetslocking op :8080)
+        # NPM (Docker bridge) → app op host :80 (host-network)
         # docker-compose gebruikt een project-bridge (br-xxxx), niet docker0
-        ip saddr 172.16.0.0/12 tcp dport 8080 accept
+        ip saddr 172.16.0.0/12 tcp dport 80 accept
         iifname "${AP_IFACE}" udp dport 67 accept
         iifname "${AP_IFACE}" udp dport 53 accept
         iifname "${AP_IFACE}" tcp dport 53 accept
         iifname "${AP_IFACE}" tcp dport 22 accept
-        # Poort 80: HTTP captive portal redirect → NPM
+        # Poort 80: HTTP captive portal redirect → app (host-network)
         # Poort 443: HTTPS via NPM (Let's Encrypt)
         iifname "${AP_IFACE}" tcp dport { 80, 443 } accept
         ip protocol icmp accept
@@ -431,23 +431,26 @@ mkdir -p /etc/toetslocker
 cat > /etc/toetslocker/docker-compose.yml << 'COMPOSE'
 services:
 
-  # Nginx Proxy Manager: SSL-terminatie + HTTP→HTTPS redirect voor gctoetslocking.nl
+  # Nginx Proxy Manager: SSL-terminatie voor gctoetslocking.nl
+  # Poort 80 wordt NIET gemapt — app gebruikt die via host-network.
+  # DNS-01 challenge (Cloudflare) heeft HTTP-80 niet nodig.
   npm:
     image: jc21/nginx-proxy-manager:latest
     container_name: npm
     restart: unless-stopped
     ports:
-      - "80:80"      # HTTP (captive portal redirect + Let's Encrypt HTTP-01 fallback)
       - "443:443"    # HTTPS
       - "81:81"      # NPM admin-interface (alleen via beheerinterfaces dankzij nftables)
     volumes:
       - npm-data:/data
       - npm-letsencrypt:/etc/letsencrypt
-    # host.docker.internal verwijst naar de host (gctoetslocking app op poort 8080)
+    # host.docker.internal verwijst naar de host (gctoetslocking app op poort 80)
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   # ToetsLocker app: host networking zodat wlan1-monitoring blijft werken
+  # App luistert hardcoded op poort 80 (in applicatiecode) — dat is ook wat
+  # nftables verwacht voor de captive portal redirect.
   toetslocking:
     image: ghcr.io/roelofvanleeuwen/gctoetslocking:latest
     container_name: toetslocker
@@ -456,11 +459,6 @@ services:
     privileged: true
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      # Poort 8080: NPM proxyt er via host.docker.internal naartoe
-      # ASPNETCORE_URLS wordt overschreven door Kestrel.Endpoints in appsettings.json;
-      # gebruik daarom de Kestrel__Endpoints env var (hogere prioriteit).
-      - ASPNETCORE_URLS=http://+:8080
-      - Kestrel__Endpoints__Http__Url=http://+:8080
       - ConnectionStrings__Default=Data Source=/data/app.db
       - Monitoring__Interface=wlan1
       - Monitoring__PollSeconds=2
@@ -761,7 +759,7 @@ if [[ -z "$CERT_ID" ]]; then
 fi
 _log "Certificaat aangemaakt (id=${CERT_ID})"
 
-# Proxy host aanmaken: gctoetslocking.nl → gctoetslocking app op host:8080
+# Proxy host aanmaken: gctoetslocking.nl → gctoetslocking app op host:80
 _log "Proxy host aanmaken voor gctoetslocking.nl..."
 PROXY_RESPONSE=$(curl -s -X POST "${NPM_URL}/api/nginx/proxy-hosts" \
     -H "Authorization: Bearer ${TOKEN}" \
@@ -770,7 +768,7 @@ PROXY_RESPONSE=$(curl -s -X POST "${NPM_URL}/api/nginx/proxy-hosts" \
         \"domain_names\": [\"gctoetslocking.nl\"],
         \"forward_scheme\": \"http\",
         \"forward_host\": \"host.docker.internal\",
-        \"forward_port\": 8080,
+        \"forward_port\": 80,
         \"ssl_forced\": true,
         \"http2_support\": true,
         \"certificate_id\": ${CERT_ID},
@@ -923,10 +921,10 @@ DNS_OK=$(nslookup gctoetslocking.nl "${AP_IP}" 2>/dev/null | grep -c "${AP_IP}" 
     || { warn "DNS: gctoetslocking.nl resolveert niet via ${AP_IP}"; ERRORS=$((ERRORS+1)); }
 
 # Controleer gctoetslocking app intern (host:8080)
-APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:8080" || true)
+APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:80" || true)
 [[ "$APP_OK" =~ ^(200|301|302)$ ]] \
-    && ok "App intern bereikbaar op poort 8080 (status ${APP_OK})" \
-    || info "App poort 8080 nog niet bereikbaar — container start op (docker ps om te controleren)"
+    && ok "App intern bereikbaar op poort 80 (status ${APP_OK})" \
+    || info "App poort 80 nog niet bereikbaar — container start op (docker ps om te controleren)"
 
 # Controleer HTTPS via NPM (niet meegeteld in ERRORS — certificaat kan nog in aanvraag zijn)
 HTTPS_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 10 -k "https://localhost:443" || true)
