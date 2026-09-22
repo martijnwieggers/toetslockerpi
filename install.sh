@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 25
+# versie 26
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -479,6 +479,14 @@ volumes:
 COMPOSE
 ok "docker-compose.yml aangemaakt (/etc/toetslocker/docker-compose.yml)"
 
+# .env bestand met Cloudflare token (docker compose leest dit automatisch
+# via WorkingDirectory=/etc/toetslocker in de systemd service)
+cat > /etc/toetslocker/.env << EOF
+CF_API_TOKEN=${CF_API_TOKEN}
+EOF
+chmod 600 /etc/toetslocker/.env
+ok ".env aangemaakt met Cloudflare token"
+
 # Traefik statische configuratie
 cat > /etc/toetslocker/traefik.yml << EOF
 entryPoints:
@@ -689,6 +697,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+WorkingDirectory=/etc/toetslocker
 # Pull nieuwe image (fout = OK, dan wordt gecachede image gebruikt)
 ExecStartPre=-/usr/bin/docker compose -f /etc/toetslocker/docker-compose.yml pull
 # Start container (of herstart als image gewijzigd is)
