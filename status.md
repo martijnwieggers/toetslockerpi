@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-07-07
+Bijgewerkt: 2026-09-22
 
 ---
 
@@ -32,8 +32,9 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 | Landcode | NL |
 | AP IP-adres | 192.168.50.1 |
 | DHCP range | 192.168.50.10 – 192.168.50.200 |
-| Domeinnaam | toetslocker.lan |
-| Docker container | ghcr.io/roelofvanleeuwen/gctoetslocking:latest op poort 80 |
+| Applicatie URL | https://gctoetslocking.nl (SSL via Let's Encrypt + Cloudflare DNS) |
+| Docker: app | ghcr.io/roelofvanleeuwen/gctoetslocking:latest — host networking, poort 8080 |
+| Docker: proxy | jc21/nginx-proxy-manager:latest — poort 80/443/81 |
 
 ---
 
@@ -65,6 +66,76 @@ systemctl status uplink-monitor
 journalctl -t uplink-monitor -n 20
 cat /etc/toetslocker.conf          # toont geregistreerde config
 ```
+
+---
+
+## HTTPS — gctoetslocking.nl via Nginx Proxy Manager
+
+Verbonden clients bereiken de toetsapplicatie via `https://gctoetslocking.nl`. Het SSL-certificaat wordt automatisch aangevraagd via Let's Encrypt met een Cloudflare DNS-challenge. Het installatiescript regelt dit volledig — er zijn geen handmatige stappen nodig.
+
+### Hoe het werkt
+
+```
+Student (wlan1)
+  → nftables poort 80/443
+    → Nginx Proxy Manager (Docker, poort 80/443)
+      → gctoetslocking app (host network, poort 8080)
+```
+
+- **Poort 80** — NPM vangt dit af en stuurt door naar HTTPS (301 redirect)
+- **Poort 443** — NPM termineert SSL en proxyt naar de app op `host.docker.internal:8080`
+- **Poort 81** — NPM admin-interface; alleen bereikbaar via beheerinterfaces (eth0/wlan0), geblokkeerd op wlan1
+
+De gctoetslocking app draait op host networking zodat wlan1-monitoring blijft werken. NPM communiceert via `host.docker.internal` (Docker's interne naam voor de host).
+
+### Cloudflare API-token aanmaken
+
+Het installatiescript vraagt om een Cloudflare API-token. Dit token geeft Let's Encrypt toestemming om tijdelijk een DNS-record aan te maken ter verificatie — je hoeft de Pi niet publiek bereikbaar te maken.
+
+**Stap voor stap:**
+
+1. Ga naar [dash.cloudflare.com](https://dash.cloudflare.com) en log in
+2. Klik rechtsboven op je profielpicture → **My Profile**
+3. Ga naar het tabblad **API Tokens**
+4. Klik op **Create Token**
+5. Kies de template **Edit zone DNS** (staat in de lijst)
+6. Pas de instellingen aan:
+   - **Permissions:** Zone → DNS → Edit *(staat al ingevuld)*
+   - **Zone Resources:** Include → Specific zone → `gctoetslocking.nl`
+7. Klik op **Continue to summary** → **Create Token**
+8. Kopieer het token — **je ziet het maar één keer**
+
+> **Let op:** sla het token veilig op. Bij verlies moet je een nieuw token aanmaken. Het token wordt opgeslagen in `/etc/toetslocker.conf` op de Pi (alleen leesbaar door root).
+
+### NPM admin-interface
+
+Na installatie kun je de NPM-interface bereiken via je beheernetwerk (niet via het studentenwifi):
+
+```
+http://<IP-van-Pi-op-beheernetwerk>:81
+```
+
+Standaard inloggegevens (eerste keer):
+- E-mail: `admin@example.com`
+- Wachtwoord: `changeme`
+
+NPM vraagt direct om dit te wijzigen. Je kunt hier ook certificaten bekijken, vernieuwen of nieuwe proxy hosts toevoegen.
+
+### Certificaat vernieuwen
+
+NPM vernieuwt het Let's Encrypt-certificaat automatisch vóór het verloopt (geldigheid: 90 dagen, vernieuwing na ~60 dagen). Handmatig verlengen is niet nodig.
+
+### NPM setup herhalen
+
+Als de automatische configuratie tijdens installatie is mislukt (bijv. door een netwerkprobleem), kun je het script handmatig opnieuw uitvoeren:
+
+```bash
+sudo /usr/local/bin/npm-setup.sh
+# Log bekijken:
+journalctl -t npm-setup -n 30
+```
+
+Het script is idempotent: als de proxy host al bestaat, doet het niets.
 
 ---
 
@@ -146,7 +217,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/usr/local/bin/switch-uplink.sh` | Toont uplink-status (handmatig wisselen is vervallen) |
 | `/usr/local/bin/logging_on.sh` | DNS query-logging inschakelen (schrijft naar /var/log/dnsmasq.log) |
 | `/usr/local/bin/logging_off.sh` | DNS query-logging uitschakelen |
-| `/etc/toetslocker/docker-compose.yml` | Docker Compose voor gctoetslocking app |
+| `/etc/toetslocker/docker-compose.yml` | Docker Compose: gctoetslocking (poort 8080, host network) + Nginx Proxy Manager |
 | `/boot/firmware/cmdline.txt` | cgroup_memory=1 toegevoegd |
 | `/etc/hosts` | 192.168.50.1 toetslocker.lan toetslocker |
 | `/etc/toetslocker.conf` | Actieve configuratie (UPLINK_IFACE, AP_IFACE, AP_IP) |
@@ -162,7 +233,7 @@ nftables         active + enabled
 docker           active + enabled
 wlan1-setup      active + enabled
 uplink-monitor   active + enabled
-toetslocker      active + enabled   (pull latest image + start bij opstart)
+toetslocker      active + enabled   (pull latest + start npm én gctoetslocking bij opstart)
 whitelist-sync   timer enabled      (boot +2 min, daarna elke 15 min)
 ```
 
@@ -333,6 +404,7 @@ sudo grep REFUSED /var/log/dnsmasq.log
 - [ ] HTTPS captive portal pagina bouwen (nu de gctoetslocking-app op poort 80)
 - [x] Logging: standaard UIT; `logging_on.sh` / `logging_off.sh` geïnstalleerd in `/usr/local/bin/`
 - [x] SSH key beheer script klaar (ssh-key-beheer.sh): aanmaken, tonen, verwijderen + automatische GitHub SSH config
+- [x] HTTPS via gctoetslocking.nl: Nginx Proxy Manager + Let's Encrypt (Cloudflare DNS-challenge), volledig geautomatiseerd via install.sh
 
 ---
 
