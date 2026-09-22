@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 14
+# versie 15
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -700,12 +700,12 @@ source /etc/toetslocker.conf
 
 _log() { echo "[npm-setup] $1"; logger -t npm-setup "$1"; }
 
-# Wacht tot NPM-API bereikbaar is (max 3 minuten)
+# Wacht tot NPM-API bereikbaar is (max 5 minuten)
 _log "Wachten op Nginx Proxy Manager..."
-for i in $(seq 1 36); do
+for i in $(seq 1 60); do
     STATUS=$(curl -so /dev/null -w "%{http_code}" --max-time 3 "${NPM_URL}/api/" 2>/dev/null || true)
     [[ "$STATUS" =~ ^(200|401|404)$ ]] && { _log "NPM gereed (HTTP $STATUS)"; break; }
-    [[ $i -eq 36 ]] && { _log "FOUT: NPM niet bereikbaar na 3 min"; exit 1; }
+    [[ $i -eq 60 ]] && { _log "FOUT: NPM niet bereikbaar na 5 min"; exit 1; }
     sleep 5
 done
 
@@ -836,10 +836,17 @@ systemctl restart docker-prune.timer
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
 
-# Verwijder eventuele oude nginx container
+# Verwijder eventuele oude containers
 docker rm -f toetslocker-nginx 2>/dev/null || true
-# Verwijder eventuele oude npm container (bij herinstallatie)
 docker rm -f npm 2>/dev/null || true
+docker rm -f toetslocker 2>/dev/null || true
+
+# NPM database-volume resetten bij herinstallatie zodat default credentials werken.
+# npm-letsencrypt (certificaten) bewaren om Let's Encrypt rate limits te vermijden.
+if docker volume ls -q | grep -q "toetslocker_npm-data"; then
+    info "npm-data volume gereset (zodat NPM start met default credentials)"
+    docker volume rm toetslocker_npm-data 2>/dev/null || true
+fi
 
 # Docker images ophalen met zichtbare voortgang (NPM image is ~350 MB)
 info "Docker images ophalen — dit kan enkele minuten duren..."
@@ -856,8 +863,17 @@ systemctl restart toetslocker.service \
 # overgestapt op het nieuwe image en is de vorige versie echt dangling.
 docker image prune -f && ok "Ongebruikte Docker images opgeruimd"
 
-info "Wachten op NPM en gctoetslocking app (max 90s)..."
-sleep 30
+# Wacht tot npm container echt draait voor npm-setup wordt gestart
+info "Wachten tot npm container actief is..."
+for _i in $(seq 1 24); do
+    if docker ps --filter "name=^npm$" --filter "status=running" --format "{{.Names}}" | grep -q "^npm$"; then
+        ok "npm container actief"
+        break
+    fi
+    [[ $_i -eq 24 ]] && warn "npm container na 2 min nog niet actief — npm-setup mogelijk instabiel"
+    sleep 5
+done
+unset _i
 
 # NPM configureren via API (certificaat + proxy host)
 info "NPM configureren (Let's Encrypt via Cloudflare)..."
