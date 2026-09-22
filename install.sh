@@ -1,9 +1,10 @@
 #!/bin/bash
-# versie 15
+# versie 16
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
-# temp-bestand en herstart van daaruit zodat stdin de terminal is.
-[ -t 0 ] || { T=$(mktemp); { printf '#!/bin/bash\n'; cat; } > "$T"; bash "$T"; EC=$?; rm -f "$T"; exit $EC; }
+# temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
+# toetsenbord lezen (ook zonder expliciete < /dev/tty per read).
+[ -t 0 ] || { T=$(mktemp); { printf '#!/bin/bash\n'; cat; } > "$T"; bash "$T" < /dev/tty; EC=$?; rm -f "$T"; exit $EC; }
 # =============================================================================
 # ToetsLocker AP Setup Script
 # Raspberry Pi 5 — Raspberry Pi OS Lite (Debian Trixie)
