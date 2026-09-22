@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 13
+# versie 14
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -903,13 +903,13 @@ DNS_OK=$(nslookup gctoetslocking.nl "${AP_IP}" 2>/dev/null | grep -c "${AP_IP}" 
 APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:8080" || true)
 [[ "$APP_OK" =~ ^(200|301|302)$ ]] \
     && ok "App intern bereikbaar op poort 8080 (status ${APP_OK})" \
-    || { warn "App niet bereikbaar op poort 8080 — mogelijk nog aan het starten"; ERRORS=$((ERRORS+1)); }
+    || info "App poort 8080 nog niet bereikbaar — container start op (docker ps om te controleren)"
 
-# Controleer HTTPS via NPM
+# Controleer HTTPS via NPM (niet meegeteld in ERRORS — certificaat kan nog in aanvraag zijn)
 HTTPS_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 10 -k "https://localhost:443" || true)
-[[ "$HTTPS_OK" =~ ^(200|301|302)$ ]] \
+[[ "$HTTPS_OK" =~ ^(200|301|302|308)$ ]] \
     && ok "HTTPS: NPM bereikbaar op poort 443 (status ${HTTPS_OK})" \
-    || { warn "HTTPS: NPM poort 443 niet bereikbaar (status ${HTTPS_OK}) — certificaat mogelijk nog in aanvraag"; }
+    || info "HTTPS: poort 443 nog niet bereikbaar — certificaat wordt aangevraagd (journalctl -t npm-setup)"
 
 echo ""
 if [[ $ERRORS -eq 0 ]]; then
@@ -925,8 +925,9 @@ echo "  WiFi netwerk    : ${SSID}"
 echo "  WiFi wachtwoord : ${WIFI_PASS}"
 echo "  IP-adres        : ${AP_IP}"
 echo "  Adapter profiel : $(basename "${HOSTAPD_CONF}")"
+UPLINK_IP=$(ip addr show "${UPLINK_IFACE}" 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | head -1 || true)
 echo "  Applicatie URL  : https://gctoetslocking.nl"
-echo "  NPM admin-UI    : http://${UPLINK_IFACE:-wlan0-ip}:81  (alleen via beheernetwerk)"
+echo "  NPM admin-UI    : http://${UPLINK_IP:-<uplink-ip>}:81  (alleen via beheernetwerk)"
 echo ""
 echo "  Whitelist bewerken : push naar GitHub — de Pi haalt hem binnen 15 min op"
 echo "                       (of lokaal: sudo nano /etc/whitelist.txt + update-whitelist.sh)"
