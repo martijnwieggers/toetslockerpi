@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 17
+# versie 18
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -457,7 +457,10 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       # Poort 8080: NPM proxyt er via host.docker.internal naartoe
+      # ASPNETCORE_URLS wordt overschreven door Kestrel.Endpoints in appsettings.json;
+      # gebruik daarom de Kestrel__Endpoints env var (hogere prioriteit).
       - ASPNETCORE_URLS=http://+:8080
+      - Kestrel__Endpoints__Http__Url=http://+:8080
       - ConnectionStrings__Default=Data Source=/data/app.db
       - Monitoring__Interface=wlan1
       - Monitoring__PollSeconds=2
