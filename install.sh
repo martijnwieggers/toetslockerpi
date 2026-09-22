@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 12
+# versie 13
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -847,13 +847,14 @@ docker compose -f /etc/toetslocker/docker-compose.yml pull \
     && ok "Docker images opgehaald" \
     || warn "Docker pull deels mislukt — wordt opnieuw geprobeerd bij start"
 
-# Oude/ongebruikte images direct opruimen na de pull
-docker image prune -f && ok "Ongebruikte Docker images opgeruimd"
-
 # gctoetslocking app + NPM via systemd service (images zijn al gecached)
 systemctl restart toetslocker.service \
     && ok "Containers gestart via toetslocker.service (npm + gctoetslocking)" \
     || warn "toetslocker.service kon niet starten — controleer: journalctl -u toetslocker"
+
+# Oude images opruimen NA de service-restart: pas dan zijn de containers
+# overgestapt op het nieuwe image en is de vorige versie echt dangling.
+docker image prune -f && ok "Ongebruikte Docker images opgeruimd"
 
 info "Wachten op NPM en gctoetslocking app (max 90s)..."
 sleep 30
