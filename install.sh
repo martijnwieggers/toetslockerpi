@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 27
+# versie 28
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -381,6 +381,10 @@ table inet filter {
         # Beheerinterfaces → Traefik inclusief dashboard (8080)
         iifname "eth0"        ip daddr 172.16.0.0/12 tcp dport { 80, 443, 8080 } accept
         iifname "wlan0"       ip daddr 172.16.0.0/12 tcp dport { 80, 443, 8080 } accept
+        # Docker containers → internet: DNS + HTTPS voor Traefik ACME/Cloudflare
+        ip saddr 172.16.0.0/12 oifname { "eth0", "wlan0" } udp dport 53 accept
+        ip saddr 172.16.0.0/12 oifname { "eth0", "wlan0" } tcp dport { 80, 443 } accept
+        ip saddr 172.16.0.0/12 oifname { "eth0", "wlan0" } udp dport 443 accept
     }
 
     chain output {
@@ -443,6 +447,9 @@ services:
       - "8080:8080"  # Dashboard (alleen via beheerinterfaces dankzij nftables)
     environment:
       - CF_DNS_API_TOKEN=${CF_API_TOKEN}
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - /etc/toetslocker/traefik.yml:/etc/traefik/traefik.yml:ro
       - /etc/toetslocker/traefik-dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
