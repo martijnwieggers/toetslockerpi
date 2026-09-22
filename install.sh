@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 21
+# versie 22
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -31,6 +31,7 @@ echo ""
 # Laad bestaande AP-instellingen als defaults
 _DEF_SSID="ToetsLocker"; _DEF_PASS=""; _DEF_COUNTRY="NL"
 _DEF_CF_TOKEN=""; _DEF_CF_EMAIL=""
+_DEF_NPM_NAME=""; _DEF_NPM_EMAIL=""; _DEF_NPM_PASS=""
 if [[ -f /etc/toetslocker.conf ]]; then
     _v=$(grep '^SSID='         /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
     [[ -n "$_v" ]] && _DEF_SSID="$_v" || true
@@ -42,6 +43,12 @@ if [[ -f /etc/toetslocker.conf ]]; then
     [[ -n "$_v" ]] && _DEF_CF_TOKEN="$_v" || true
     _v=$(grep '^CF_EMAIL='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
     [[ -n "$_v" ]] && _DEF_CF_EMAIL="$_v" || true
+    _v=$(grep '^NPM_NAME='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_NPM_NAME="$_v" || true
+    _v=$(grep '^NPM_EMAIL='    /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_NPM_EMAIL="$_v" || true
+    _v=$(grep '^NPM_PASS='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
+    [[ -n "$_v" ]] && _DEF_NPM_PASS="$_v" || true
     unset _v
 fi
 
@@ -78,6 +85,26 @@ while true; do
     warn "E-mailadres is verplicht voor Let's Encrypt."
 done
 
+echo ""
+echo "--- Nginx Proxy Manager beheerder ---"
+
+while true; do
+    read -rp "  Volledige naam [${_DEF_NPM_NAME:-invoeren}]: " NPM_NAME < /dev/tty
+    NPM_NAME=${NPM_NAME:-$_DEF_NPM_NAME}
+    [[ -n "$NPM_NAME" ]] && break
+    warn "Naam is verplicht."
+done
+
+read -rp "  E-mailadres [${_DEF_NPM_EMAIL:-$CF_EMAIL}]: " NPM_EMAIL < /dev/tty
+NPM_EMAIL=${NPM_EMAIL:-${_DEF_NPM_EMAIL:-$CF_EMAIL}}
+
+while true; do
+    read -rsp "  Wachtwoord [${_DEF_NPM_PASS:+opgeslagen, Enter = bewaren}]: " NPM_PASS < /dev/tty; echo ""
+    NPM_PASS=${NPM_PASS:-$_DEF_NPM_PASS}
+    [[ ${#NPM_PASS} -ge 8 ]] && break
+    warn "Minimaal 8 tekens vereist."
+done
+
 AP_IFACE="wlan1"
 AP_IP="192.168.50.1"
 
@@ -105,6 +132,8 @@ info "AP-IP:        $AP_IP ($AP_IFACE)"
 info "Uplink:       $UPLINK_IFACE"
 info "CF e-mail:    $CF_EMAIL"
 info "CF token:     ${CF_API_TOKEN:0:8}…"
+info "NPM naam:     $NPM_NAME"
+info "NPM e-mail:   $NPM_EMAIL"
 echo ""
 read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM
 [[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
@@ -120,6 +149,9 @@ WIFI_PASS=${WIFI_PASS}
 COUNTRY=${COUNTRY}
 CF_API_TOKEN=${CF_API_TOKEN}
 CF_EMAIL=${CF_EMAIL}
+NPM_NAME=${NPM_NAME}
+NPM_EMAIL=${NPM_EMAIL}
+NPM_PASS=${NPM_PASS}
 EOF
 chmod 600 /etc/toetslocker.conf
 ok "Configuratie opgeslagen (/etc/toetslocker.conf)"
@@ -728,6 +760,19 @@ if [[ -z "$TOKEN" ]]; then
     exit 0
 fi
 _log "NPM login succesvol"
+
+# Beheerder-account instellen (naam, e-mail, wachtwoord)
+_log "NPM beheerder-account instellen..."
+curl -s -X PUT "${NPM_URL}/api/users/1" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\": \"${NPM_NAME}\", \"email\": \"${NPM_EMAIL}\", \"roles\": [\"admin\"]}" > /dev/null
+
+curl -s -X PUT "${NPM_URL}/api/users/1/auth" \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"type\": \"password\", \"current\": \"changeme\", \"secret\": \"${NPM_PASS}\"}" > /dev/null
+_log "Beheerder-account bijgewerkt: ${NPM_EMAIL}"
 
 # Controleer of proxy host al bestaat (idempotent)
 EXISTING=$(curl -s "${NPM_URL}/api/nginx/proxy-hosts" \
