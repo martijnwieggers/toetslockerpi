@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 19
+# versie 20
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -721,7 +721,11 @@ TOKEN=$(curl -s -X POST "${NPM_URL}/api/tokens" \
     -d '{"identity":"admin@example.com","secret":"changeme"}' \
     2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || true)
 
-[[ -z "$TOKEN" ]] && { _log "FOUT: Kon niet inloggen bij NPM (default credentials werken niet — al geconfigureerd?)"; exit 1; }
+if [[ -z "$TOKEN" ]]; then
+    _log "Default credentials werken niet — NPM is al geconfigureerd, setup overgeslagen"
+    _log "Controleer handmatig of gctoetslocking.nl als proxy host bestaat (NPM admin op poort 81)"
+    exit 0
+fi
 _log "NPM login succesvol"
 
 # Controleer of proxy host al bestaat (idempotent)
