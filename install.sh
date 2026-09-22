@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 23
+# versie 24
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -754,10 +754,20 @@ TOKEN=$(curl -s -X POST "${NPM_URL}/api/tokens" \
     -d '{"identity":"admin@example.com","secret":"changeme"}' \
     2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || true)
 
+FRESH_INSTALL=true
 if [[ -z "$TOKEN" ]]; then
-    _log "Default credentials werken niet — NPM is al geconfigureerd, setup overgeslagen"
-    _log "Controleer handmatig of gctoetslocking.nl als proxy host bestaat (NPM admin op poort 81)"
-    exit 0
+    # Default mislukt — probeer het opgeslagen wachtwoord (herinstallatie)
+    FRESH_INSTALL=false
+    TOKEN=$(curl -s -X POST "${NPM_URL}/api/tokens" \
+        -H "Content-Type: application/json" \
+        -d "{\"identity\":\"${NPM_EMAIL}\",\"secret\":\"${NPM_PASS}\"}" \
+        2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('token',''))" 2>/dev/null || true)
+fi
+
+if [[ -z "$TOKEN" ]]; then
+    _log "FOUT: Kan niet inloggen bij NPM (default én opgeslagen wachtwoord werken niet)"
+    _log "Reset NPM handmatig of verwijder het npm-data volume en herstart"
+    exit 1
 fi
 _log "NPM login succesvol"
 
@@ -768,10 +778,13 @@ curl -s -X PUT "${NPM_URL}/api/users/1" \
     -H "Content-Type: application/json" \
     -d "{\"name\": \"${NPM_NAME}\", \"email\": \"${NPM_EMAIL}\", \"roles\": [\"admin\"]}" > /dev/null
 
-curl -s -X PUT "${NPM_URL}/api/users/1/auth" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "{\"type\": \"password\", \"current\": \"changeme\", \"secret\": \"${NPM_PASS}\"}" > /dev/null
+if $FRESH_INSTALL; then
+    # Wachtwoord alleen wijzigen als we met default-credentials zijn ingelogd
+    curl -s -X PUT "${NPM_URL}/api/users/1/auth" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"type\": \"password\", \"current\": \"changeme\", \"secret\": \"${NPM_PASS}\"}" > /dev/null
+fi
 _log "Beheerder-account bijgewerkt: ${NPM_EMAIL}"
 
 # Controleer of proxy host al bestaat (idempotent)
