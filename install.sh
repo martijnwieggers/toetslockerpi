@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 22
+# versie 23
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -31,7 +31,7 @@ echo ""
 # Laad bestaande AP-instellingen als defaults
 _DEF_SSID="ToetsLocker"; _DEF_PASS=""; _DEF_COUNTRY="NL"
 _DEF_CF_TOKEN=""; _DEF_CF_EMAIL=""
-_DEF_NPM_NAME=""; _DEF_NPM_EMAIL=""; _DEF_NPM_PASS=""
+_DEF_NPM_NAME="Martijn Wieggers"; _DEF_NPM_EMAIL="ma.wieggers@graafschapcollege.nl"; _DEF_NPM_PASS="GHJGHYFG1293!"
 if [[ -f /etc/toetslocker.conf ]]; then
     _v=$(grep '^SSID='         /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
     [[ -n "$_v" ]] && _DEF_SSID="$_v" || true
