@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 16
+# versie 17
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -352,8 +352,9 @@ table inet filter {
         iif "lo" accept
         iifname "eth0"  accept
         iifname "wlan0" accept
-        # Docker-containers (bijv. npm) → host (gctoetslocking op :8080)
-        iifname "docker0" tcp dport 8080 accept
+        # Docker-containers → host (gctoetslocking op :8080)
+        # docker-compose gebruikt een project-bridge (br-xxxx), niet docker0
+        ip saddr 172.16.0.0/12 tcp dport 8080 accept
         iifname "${AP_IFACE}" udp dport 67 accept
         iifname "${AP_IFACE}" udp dport 53 accept
         iifname "${AP_IFACE}" tcp dport 53 accept
@@ -372,10 +373,12 @@ table inet filter {
         # (routing bepaalt welke actief is — geen reload nodig bij wissel)
         iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips tcp dport { 80, 443 } accept
         iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips udp dport 443 accept
-        # NPM: AP-clients mogen alleen HTTP/HTTPS; poort 81 (admin) alleen via beheerinterfaces
-        iifname "${AP_IFACE}" oifname "docker0" tcp dport { 80, 443 } accept
-        iifname "eth0"        oifname "docker0" tcp dport { 80, 443, 81 } accept
-        iifname "wlan0"       oifname "docker0" tcp dport { 80, 443, 81 } accept
+        # NPM: docker-compose gebruikt br-xxxx (niet docker0), match op Docker IP-range
+        # AP-clients → NPM captive portal (80/443); poort 81 geblokkeerd op wlan1
+        iifname "${AP_IFACE}" ip daddr 172.16.0.0/12 tcp dport { 80, 443 } accept
+        # Beheerinterfaces → NPM inclusief admin (81)
+        iifname "eth0"        ip daddr 172.16.0.0/12 tcp dport { 80, 443, 81 } accept
+        iifname "wlan0"       ip daddr 172.16.0.0/12 tcp dport { 80, 443, 81 } accept
     }
 
     chain output {
