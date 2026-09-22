@@ -410,17 +410,9 @@ sudo grep REFUSED /var/log/dnsmasq.log
 
 ## Installatiescript gebruiken op verse Pi
 
-**Optie A — direct vanaf GitHub (aanbevolen):**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh | sudo bash
-```
-
-**Optie B — eerst downloaden, dan uitvoeren:**
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/install.sh -o install.sh
 sudo bash install.sh
 ```
 
-Het script downloadt zelf de hulpscripts (`switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`) en de whitelist van GitHub, detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord en landcode.
+Het script downloadt zelf de hulpscripts (`switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`) en de whitelist van GitHub, detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord, landcode en Cloudflare API-token.
