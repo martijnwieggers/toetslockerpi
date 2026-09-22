@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 11
+# versie 12
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart van daaruit zodat stdin de terminal is.
@@ -784,6 +784,39 @@ chmod 700 /usr/local/bin/npm-setup.sh
 ok "npm-setup.sh aangemaakt (/usr/local/bin/npm-setup.sh)"
 
 # =============================================================================
+# STAP 9g: Docker image cleanup — na pull én wekelijks via timer
+# =============================================================================
+info "Stap 9g: Docker image cleanup timer aanmaken..."
+
+cat > /etc/systemd/system/docker-prune.service << 'EOF'
+[Unit]
+Description=Docker ongebruikte images opruimen
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker image prune -f
+EOF
+
+cat > /etc/systemd/system/docker-prune.timer << 'EOF'
+[Unit]
+Description=Wekelijks Docker images opruimen
+
+[Timer]
+OnCalendar=weekly
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable docker-prune.timer
+ok "docker-prune.timer aangemaakt (wekelijks, bij elke start van docker-compose pull ook direct)"
+
+# =============================================================================
 # STAP 10: Services starten
 # =============================================================================
 info "Stap 10: Services starten..."
@@ -798,6 +831,7 @@ systemctl restart docker
 sleep 3
 systemctl restart uplink-monitor
 systemctl restart whitelist-sync.timer
+systemctl restart docker-prune.timer
 
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
@@ -812,6 +846,9 @@ info "Docker images ophalen — dit kan enkele minuten duren..."
 docker compose -f /etc/toetslocker/docker-compose.yml pull \
     && ok "Docker images opgehaald" \
     || warn "Docker pull deels mislukt — wordt opnieuw geprobeerd bij start"
+
+# Oude/ongebruikte images direct opruimen na de pull
+docker image prune -f && ok "Ongebruikte Docker images opgeruimd"
 
 # gctoetslocking app + NPM via systemd service (images zijn al gecached)
 systemctl restart toetslocker.service \
@@ -839,7 +876,7 @@ echo " Eindcontrole"
 echo "============================================"
 
 ERRORS=0
-for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker whitelist-sync.timer; do
+for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker whitelist-sync.timer docker-prune.timer; do
     if [[ "$(systemctl is-active "$svc")" == "active" ]]; then
         ok "$svc actief"
     else
