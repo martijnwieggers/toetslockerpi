@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 20
+# versie 21
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -360,8 +360,9 @@ table inet filter {
         iifname "${AP_IFACE}" tcp dport 53 accept
         iifname "${AP_IFACE}" tcp dport 22 accept
         # Poort 80: HTTP captive portal redirect → app (host-network)
-        # Poort 443: HTTPS via NPM (Let's Encrypt)
+        # Poort 443: HTTPS via NPM (Let's Encrypt); UDP voor QUIC/HTTP3
         iifname "${AP_IFACE}" tcp dport { 80, 443 } accept
+        iifname "${AP_IFACE}" udp dport 443 accept
         ip protocol icmp accept
     }
 
