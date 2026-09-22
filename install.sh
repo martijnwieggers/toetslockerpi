@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 24
+# versie 25
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -31,7 +31,6 @@ echo ""
 # Laad bestaande AP-instellingen als defaults
 _DEF_SSID="ToetsLocker"; _DEF_PASS=""; _DEF_COUNTRY="NL"
 _DEF_CF_TOKEN=""; _DEF_CF_EMAIL=""
-_DEF_NPM_NAME="Martijn Wieggers"; _DEF_NPM_EMAIL="ma.wieggers@graafschapcollege.nl"; _DEF_NPM_PASS="GHJGHYFG1293!"
 if [[ -f /etc/toetslocker.conf ]]; then
     _v=$(grep '^SSID='         /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
     [[ -n "$_v" ]] && _DEF_SSID="$_v" || true
@@ -43,12 +42,6 @@ if [[ -f /etc/toetslocker.conf ]]; then
     [[ -n "$_v" ]] && _DEF_CF_TOKEN="$_v" || true
     _v=$(grep '^CF_EMAIL='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
     [[ -n "$_v" ]] && _DEF_CF_EMAIL="$_v" || true
-    _v=$(grep '^NPM_NAME='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
-    [[ -n "$_v" ]] && _DEF_NPM_NAME="$_v" || true
-    _v=$(grep '^NPM_EMAIL='    /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
-    [[ -n "$_v" ]] && _DEF_NPM_EMAIL="$_v" || true
-    _v=$(grep '^NPM_PASS='     /etc/toetslocker.conf 2>/dev/null | cut -d= -f2- || true)
-    [[ -n "$_v" ]] && _DEF_NPM_PASS="$_v" || true
     unset _v
 fi
 
@@ -85,26 +78,6 @@ while true; do
     warn "E-mailadres is verplicht voor Let's Encrypt."
 done
 
-echo ""
-echo "--- Nginx Proxy Manager beheerder ---"
-
-while true; do
-    read -rp "  Volledige naam [${_DEF_NPM_NAME:-invoeren}]: " NPM_NAME < /dev/tty
-    NPM_NAME=${NPM_NAME:-$_DEF_NPM_NAME}
-    [[ -n "$NPM_NAME" ]] && break
-    warn "Naam is verplicht."
-done
-
-read -rp "  E-mailadres [${_DEF_NPM_EMAIL:-$CF_EMAIL}]: " NPM_EMAIL < /dev/tty
-NPM_EMAIL=${NPM_EMAIL:-${_DEF_NPM_EMAIL:-$CF_EMAIL}}
-
-while true; do
-    read -rsp "  Wachtwoord [${_DEF_NPM_PASS:+opgeslagen, Enter = bewaren}]: " NPM_PASS < /dev/tty; echo ""
-    NPM_PASS=${NPM_PASS:-$_DEF_NPM_PASS}
-    [[ ${#NPM_PASS} -ge 8 ]] && break
-    warn "Minimaal 8 tekens vereist."
-done
-
 AP_IFACE="wlan1"
 AP_IP="192.168.50.1"
 
@@ -132,8 +105,6 @@ info "AP-IP:        $AP_IP ($AP_IFACE)"
 info "Uplink:       $UPLINK_IFACE"
 info "CF e-mail:    $CF_EMAIL"
 info "CF token:     ${CF_API_TOKEN:0:8}…"
-info "NPM naam:     $NPM_NAME"
-info "NPM e-mail:   $NPM_EMAIL"
 echo ""
 read -rp "Klopt dit? Doorgaan? [j/N]: " CONFIRM
 [[ "${CONFIRM,,}" == "j" ]] || { info "Gestopt."; exit 0; }
@@ -149,9 +120,6 @@ WIFI_PASS=${WIFI_PASS}
 COUNTRY=${COUNTRY}
 CF_API_TOKEN=${CF_API_TOKEN}
 CF_EMAIL=${CF_EMAIL}
-NPM_NAME=${NPM_NAME}
-NPM_EMAIL=${NPM_EMAIL}
-NPM_PASS=${NPM_PASS}
 EOF
 chmod 600 /etc/toetslocker.conf
 ok "Configuratie opgeslagen (/etc/toetslocker.conf)"
@@ -407,11 +375,12 @@ table inet filter {
         iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips tcp dport { 80, 443 } accept
         iifname "${AP_IFACE}" oifname { "eth0", "wlan0" } ip daddr @allowed_ips udp dport 443 accept
         # NPM: docker-compose gebruikt br-xxxx (niet docker0), match op Docker IP-range
-        # AP-clients → NPM captive portal (80/443); poort 81 geblokkeerd op wlan1
+        # AP-clients → Traefik captive portal (443); poort 8080 geblokkeerd op wlan1
         iifname "${AP_IFACE}" ip daddr 172.16.0.0/12 tcp dport { 80, 443 } accept
-        # Beheerinterfaces → NPM inclusief admin (81)
-        iifname "eth0"        ip daddr 172.16.0.0/12 tcp dport { 80, 443, 81 } accept
-        iifname "wlan0"       ip daddr 172.16.0.0/12 tcp dport { 80, 443, 81 } accept
+        iifname "${AP_IFACE}" ip daddr 172.16.0.0/12 udp dport 443 accept
+        # Beheerinterfaces → Traefik inclusief dashboard (8080)
+        iifname "eth0"        ip daddr 172.16.0.0/12 tcp dport { 80, 443, 8080 } accept
+        iifname "wlan0"       ip daddr 172.16.0.0/12 tcp dport { 80, 443, 8080 } accept
     }
 
     chain output {
@@ -457,33 +426,32 @@ systemctl enable docker
 ok "Docker geconfigureerd"
 
 # docker-compose voor de gctoetslocking-app (ingebakken in install.sh)
-# De app draait met network_mode: host op poort 80 — geen nginx nodig.
-# nftables stuurt captive-portal-verkeer al naar poort 80 van de Pi.
+# Traefik verzorgt SSL-terminatie via Cloudflare DNS-01 challenge.
+# De app draait met network_mode: host op poort 80.
 mkdir -p /etc/toetslocker
 
 cat > /etc/toetslocker/docker-compose.yml << 'COMPOSE'
 services:
 
-  # Nginx Proxy Manager: SSL-terminatie voor gctoetslocking.nl
-  # Poort 80 wordt NIET gemapt — app gebruikt die via host-network.
-  # DNS-01 challenge (Cloudflare) heeft HTTP-80 niet nodig.
-  npm:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: npm
+  # Traefik: SSL-terminatie voor gctoetslocking.nl via Cloudflare DNS-01
+  traefik:
+    image: traefik:v3
+    container_name: traefik
     restart: unless-stopped
     ports:
       - "443:443"    # HTTPS
-      - "81:81"      # NPM admin-interface (alleen via beheerinterfaces dankzij nftables)
+      - "8080:8080"  # Dashboard (alleen via beheerinterfaces dankzij nftables)
+    environment:
+      - CF_DNS_API_TOKEN=${CF_API_TOKEN}
     volumes:
-      - npm-data:/data
-      - npm-letsencrypt:/etc/letsencrypt
-    # host.docker.internal verwijst naar de host (gctoetslocking app op poort 80)
+      - /etc/toetslocker/traefik.yml:/etc/traefik/traefik.yml:ro
+      - /etc/toetslocker/traefik-dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+      - traefik-letsencrypt:/letsencrypt
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
   # ToetsLocker app: host networking zodat wlan1-monitoring blijft werken
-  # App luistert hardcoded op poort 80 (in applicatiecode) — dat is ook wat
-  # nftables verwacht voor de captive portal redirect.
+  # App luistert hardcoded op poort 80 (in applicatiecode).
   toetslocking:
     image: ghcr.io/roelofvanleeuwen/gctoetslocking:latest
     container_name: toetslocker
@@ -507,10 +475,61 @@ services:
 
 volumes:
   toetslocking-pi-data:
-  npm-data:
-  npm-letsencrypt:
+  traefik-letsencrypt:
 COMPOSE
 ok "docker-compose.yml aangemaakt (/etc/toetslocker/docker-compose.yml)"
+
+# Traefik statische configuratie
+cat > /etc/toetslocker/traefik.yml << EOF
+entryPoints:
+  websecure:
+    address: ":443"
+  dashboard:
+    address: ":8080"
+
+api:
+  dashboard: true
+  insecure: true
+
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: "${CF_EMAIL}"
+      storage: /letsencrypt/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+EOF
+
+# Traefik dynamische configuratie (proxy naar app op host:80)
+cat > /etc/toetslocker/traefik-dynamic.yml << 'EOF'
+http:
+  routers:
+    gctoetslocking:
+      rule: "Host(`gctoetslocking.nl`)"
+      entryPoints:
+        - websecure
+      service: gctoetslocking
+      tls:
+        certResolver: cloudflare
+
+  services:
+    gctoetslocking:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:80"
+EOF
+ok "Traefik configuratie aangemaakt (/etc/toetslocker/traefik.yml + traefik-dynamic.yml)"
 
 # /etc/hosts — gctoetslocking.nl lokaal naar de Pi (dnsmasq doet dit voor clients,
 # maar de Pi zelf gebruikt dnsmasq niet; vandaar ook in /etc/hosts)
@@ -719,14 +738,10 @@ systemctl enable whitelist-sync.timer
 ok "whitelist-sync.timer aangemaakt (bij boot + elke 15 min; past alleen toe bij wijziging)"
 
 # =============================================================================
-# STAP 9f: NPM configuratie-script aanmaken (uitgevoerd na eerste start)
+# STAP 9f: (vervallen — Traefik configureert SSL automatisch via traefik.yml)
 # =============================================================================
-info "Stap 9f: NPM configuratie-script aanmaken..."
-
-# Dit script logt in bij NPM, maakt het Let's Encrypt certificaat aan via
-# Cloudflare DNS-challenge, en configureert de proxy host voor gctoetslocking.nl.
-# Het wordt eenmalig uitgevoerd vanuit STAP 10 nadat NPM is gestart.
-cat > /usr/local/bin/npm-setup.sh << 'NPMSCRIPT'
+true
+cat > /dev/null << 'NPMSCRIPT'
 #!/bin/bash
 set -euo pipefail
 
@@ -848,8 +863,6 @@ if [[ -z "$PROXY_ID" ]]; then
 fi
 _log "Proxy host aangemaakt (id=${PROXY_ID}) — https://gctoetslocking.nl werkt nu"
 NPMSCRIPT
-chmod 700 /usr/local/bin/npm-setup.sh
-ok "npm-setup.sh aangemaakt (/usr/local/bin/npm-setup.sh)"
 
 # =============================================================================
 # STAP 9g: Docker image cleanup — na pull én wekelijks via timer
@@ -904,53 +917,28 @@ systemctl restart docker-prune.timer
 # Whitelist laden
 /usr/local/bin/update-whitelist.sh
 
-# Verwijder eventuele oude containers
+# Verwijder eventuele oude containers (inclusief npm van vorige installatie)
 docker rm -f toetslocker-nginx 2>/dev/null || true
 docker rm -f npm 2>/dev/null || true
+docker rm -f traefik 2>/dev/null || true
 docker rm -f toetslocker 2>/dev/null || true
 
-# NPM database-volume resetten bij herinstallatie zodat default credentials werken.
-# npm-letsencrypt (certificaten) bewaren om Let's Encrypt rate limits te vermijden.
-if docker volume ls -q | grep -q "toetslocker_npm-data"; then
-    info "npm-data volume gereset (zodat NPM start met default credentials)"
-    docker volume rm toetslocker_npm-data 2>/dev/null || true
-fi
-
-# Docker images ophalen met zichtbare voortgang (NPM image is ~350 MB)
+# Docker images ophalen
 info "Docker images ophalen — dit kan enkele minuten duren..."
 docker compose -f /etc/toetslocker/docker-compose.yml pull \
     && ok "Docker images opgehaald" \
     || warn "Docker pull deels mislukt — wordt opnieuw geprobeerd bij start"
 
-# gctoetslocking app + NPM via systemd service (images zijn al gecached)
+# Containers starten via systemd service
 systemctl restart toetslocker.service \
-    && ok "Containers gestart via toetslocker.service (npm + gctoetslocking)" \
+    && ok "Containers gestart via toetslocker.service (traefik + gctoetslocking)" \
     || warn "toetslocker.service kon niet starten — controleer: journalctl -u toetslocker"
 
-# Oude images opruimen NA de service-restart: pas dan zijn de containers
-# overgestapt op het nieuwe image en is de vorige versie echt dangling.
+# Oude images opruimen
 docker image prune -f && ok "Ongebruikte Docker images opgeruimd"
 
-# Wacht tot npm container echt draait voor npm-setup wordt gestart
-info "Wachten tot npm container actief is..."
-for _i in $(seq 1 24); do
-    if docker ps --filter "name=^npm$" --filter "status=running" --format "{{.Names}}" | grep -q "^npm$"; then
-        ok "npm container actief"
-        break
-    fi
-    [[ $_i -eq 24 ]] && warn "npm container na 2 min nog niet actief — npm-setup mogelijk instabiel"
-    sleep 5
-done
-unset _i
-
-# NPM configureren via API (certificaat + proxy host)
-info "NPM configureren (Let's Encrypt via Cloudflare)..."
-if /usr/local/bin/npm-setup.sh; then
-    ok "NPM geconfigureerd — https://gctoetslocking.nl actief"
-else
-    warn "NPM setup mislukt — run handmatig: sudo /usr/local/bin/npm-setup.sh"
-    warn "Of gebruik de NPM admin-UI op poort 81 via je beheernetwerk"
-fi
+info "Traefik vraagt het Let's Encrypt certificaat aan via Cloudflare DNS-01."
+info "Volg de voortgang met: sudo docker logs traefik -f"
 
 # =============================================================================
 # EINDCONTROLE
@@ -970,11 +958,11 @@ for svc in hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocke
     fi
 done
 
-# Controleer npm container
-if docker ps --filter "name=npm" --filter "status=running" --format "{{.Names}}" | grep -q npm; then
-    ok "npm container actief"
+# Controleer traefik container
+if docker ps --filter "name=traefik" --filter "status=running" --format "{{.Names}}" | grep -q traefik; then
+    ok "traefik container actief"
 else
-    warn "npm container NIET actief"
+    warn "traefik container NIET actief"
     ERRORS=$((ERRORS+1))
 fi
 
@@ -989,11 +977,11 @@ APP_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 5 "http://localhost:80"
     && ok "App intern bereikbaar op poort 80 (status ${APP_OK})" \
     || info "App poort 80 nog niet bereikbaar — container start op (docker ps om te controleren)"
 
-# Controleer HTTPS via NPM (niet meegeteld in ERRORS — certificaat kan nog in aanvraag zijn)
+# Controleer HTTPS via Traefik (niet meegeteld in ERRORS — certificaat kan nog in aanvraag zijn)
 HTTPS_OK=$(curl -so /dev/null -w "%{http_code}" --max-time 10 -k "https://localhost:443" || true)
 [[ "$HTTPS_OK" =~ ^(200|301|302|308)$ ]] \
-    && ok "HTTPS: NPM bereikbaar op poort 443 (status ${HTTPS_OK})" \
-    || info "HTTPS: poort 443 nog niet bereikbaar — certificaat wordt aangevraagd (journalctl -t npm-setup)"
+    && ok "HTTPS: Traefik bereikbaar op poort 443 (status ${HTTPS_OK})" \
+    || info "HTTPS: poort 443 nog niet bereikbaar — certificaat wordt aangevraagd (docker logs traefik)"
 
 echo ""
 if [[ $ERRORS -eq 0 ]]; then
@@ -1011,7 +999,7 @@ echo "  IP-adres        : ${AP_IP}"
 echo "  Adapter profiel : $(basename "${HOSTAPD_CONF}")"
 UPLINK_IP=$(ip addr show "${UPLINK_IFACE}" 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | head -1 || true)
 echo "  Applicatie URL  : https://gctoetslocking.nl"
-echo "  NPM admin-UI    : http://${UPLINK_IP:-<uplink-ip>}:81  (alleen via beheernetwerk)"
+echo "  Traefik dashboard: http://${UPLINK_IP:-<uplink-ip>}:8080"
 echo ""
 echo "  Whitelist bewerken : push naar GitHub — de Pi haalt hem binnen 15 min op"
 echo "                       (of lokaal: sudo nano /etc/whitelist.txt + update-whitelist.sh)"
