@@ -96,7 +96,7 @@ grep brcmfmac /boot/firmware/cmdline.txt # kernelparameters aanwezig?
 
 **Handmatig uitvoeren (bijv. na herinstallatie):**
 ```bash
-sudo fix-wifi.sh
+curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/fix-wifi.sh | sudo bash
 ```
 
 ---

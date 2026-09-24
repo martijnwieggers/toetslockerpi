@@ -382,6 +382,7 @@ sudo grep REFUSED /var/log/dnsmasq.log
 | `ssh-key-beheer.sh` | SSH key aanmaken, tonen en verwijderen voor Git koppeling; configureert automatisch `~/.ssh/config` voor GitHub |
 | `logging_on.sh` | Dnsmasq query-logging inschakelen |
 | `logging_off.sh` | Dnsmasq query-logging uitschakelen |
+| `fix-wifi.sh` | Wi-Fi stabiliteitsfix — wordt tijdens installatie automatisch uitgevoerd (stap 1b) |
 
 ---
 
