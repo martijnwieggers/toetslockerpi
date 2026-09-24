@@ -336,6 +336,7 @@ sudo nft list set inet filter allowed_ips
 ```
 
 Huidig in whitelist.txt (zie `whitelist.txt` in deze repo voor de actuele lijst — install.sh downloadt die van GitHub):
+- Graafschap College: `graafschapcollege.nl` (alle subdomains), `app-eu.readspeaker.com` (tekst-naar-spraak), `hippocampus.eu` (aanmeldformulieren)
 - itsLearning: `graafschapcollege.itslearning.com`, `cdn.itslearning.com`, `filerepository.itslearning.com`, `proxy.itslearning.com`, `filecache.itslearning.com`, `eu1.itslearning.com`, `platform.itslearning.com`, `eu1-filerepo-1436663729.eu-central-1.elb.amazonaws.com`
 - Microsoft authenticatie (SSO): `login.microsoftonline.com`, `login.mso.msidentity.com`, `aadcdn.msauth.net`, `aadcdn.msauthimages.net`, `autologon.microsoftazuread-sso.com`, `mysignins.microsoft.com`
 - Captive-portal-detectie per platform: Windows (`www.msftconnecttest.com`, `www.msftncsi.com`, `dns.msftncsi.com`), Apple (`captive.apple.com`, `www.apple.com`, plus de iOS-fallback-probes `www.appleiphonecell.com`, `www.itools.info`, `www.ibook.info`, `www.airport.us`, `www.thinkdifferent.us`, tijdsync `time.apple.com`/`time-ios.apple.com` en certificaatcontrole `ocsp.apple.com`/`ocsp2.apple.com`), Android/ChromeOS (`clients3.google.com`, `connectivitycheck.gstatic.com`, `connectivitycheck.android.com`), plus GNOME, Ubuntu, KDE, Firefox, Kindle, Huawei, Xiaomi, Meraki en Aruba
