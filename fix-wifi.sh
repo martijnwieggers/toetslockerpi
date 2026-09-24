@@ -41,7 +41,8 @@ echo "  $BACKUP"
 echo
 
 # Controleer of cmdline.txt uit één regel bestaat
-LINES=$(wc -l < "$CMDLINE")
+# awk NR telt regels correct, ook zonder afsluitende newline (wc -l geeft dan 0)
+LINES=$(awk 'END{print NR}' "$CMDLINE")
 
 if [ "$LINES" -ne 1 ]; then
     echo "WAARSCHUWING: $CMDLINE bevat $LINES regels."
