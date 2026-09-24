@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-09-22
+Bijgewerkt: 2026-09-24
 
 ---
 
@@ -33,8 +33,8 @@ Installatiescript succesvol uitgevoerd (2026-05-29). Één timing-waarschuwing (
 | AP IP-adres | 192.168.50.1 |
 | DHCP range | 192.168.50.10 – 192.168.50.200 |
 | Applicatie URL | https://gctoetslocking.nl (SSL via Let's Encrypt + Cloudflare DNS) |
-| Docker: app | ghcr.io/roelofvanleeuwen/gctoetslocking:latest — host networking, poort 8080 |
-| Docker: proxy | jc21/nginx-proxy-manager:latest — poort 80/443/81 |
+| Docker: app | ghcr.io/roelofvanleeuwen/gctoetslocking:latest — host networking, poort 80 |
+| Docker: proxy | traefik:v3 — SSL via Cloudflare DNS-01, poort 443 en 8080 (dashboard) |
 
 ---
 
@@ -69,24 +69,23 @@ cat /etc/toetslocker.conf          # toont geregistreerde config
 
 ---
 
-## HTTPS — gctoetslocking.nl via Nginx Proxy Manager
+## HTTPS — gctoetslocking.nl via Traefik
 
-Verbonden clients bereiken de toetsapplicatie via `https://gctoetslocking.nl`. Het SSL-certificaat wordt automatisch aangevraagd via Let's Encrypt met een Cloudflare DNS-challenge. Het installatiescript regelt dit volledig — er zijn geen handmatige stappen nodig.
+Verbonden clients bereiken de toetsapplicatie via `https://gctoetslocking.nl`. Het SSL-certificaat wordt automatisch aangevraagd via Let's Encrypt met een Cloudflare DNS-01 challenge. Het installatiescript regelt dit volledig — er zijn geen handmatige stappen nodig.
 
 ### Hoe het werkt
 
 ```
 Student (wlan1)
-  → nftables poort 80/443
-    → Nginx Proxy Manager (Docker, poort 80/443)
-      → gctoetslocking app (host network, poort 8080)
+  → nftables poort 443
+    → Traefik (Docker, poort 443)
+      → gctoetslocking app (host network, poort 80)
 ```
 
-- **Poort 80** — NPM vangt dit af en stuurt door naar HTTPS (301 redirect)
-- **Poort 443** — NPM termineert SSL en proxyt naar de app op `host.docker.internal:8080`
-- **Poort 81** — NPM admin-interface; alleen bereikbaar via beheerinterfaces (eth0/wlan0), geblokkeerd op wlan1
+- **Poort 443** — Traefik termineert TLS en proxyt naar de app via `host.docker.internal:80`
+- **Poort 8080** — Traefik dashboard; alleen bereikbaar via beheerinterfaces (eth0/wlan0), geblokkeerd op wlan1
 
-De gctoetslocking app draait op host networking zodat wlan1-monitoring blijft werken. NPM communiceert via `host.docker.internal` (Docker's interne naam voor de host).
+De gctoetslocking app draait op host networking zodat wlan1-monitoring blijft werken. Traefik communiceert via `host.docker.internal` (Docker's interne naam voor de host).
 
 ### Cloudflare API-token aanmaken
 
@@ -107,35 +106,26 @@ Het installatiescript vraagt om een Cloudflare API-token. Dit token geeft Let's 
 
 > **Let op:** sla het token veilig op. Bij verlies moet je een nieuw token aanmaken. Het token wordt opgeslagen in `/etc/toetslocker.conf` op de Pi (alleen leesbaar door root).
 
-### NPM admin-interface
+### Traefik dashboard
 
-Na installatie kun je de NPM-interface bereiken via je beheernetwerk (niet via het studentenwifi):
+Na installatie is het Traefik-dashboard bereikbaar via je beheernetwerk (niet via het studentenwifi):
 
 ```
-http://<IP-van-Pi-op-beheernetwerk>:81
+http://<IP-van-Pi-op-beheernetwerk>:8080
 ```
 
-Standaard inloggegevens (eerste keer):
-- E-mail: `admin@example.com`
-- Wachtwoord: `changeme`
-
-NPM vraagt direct om dit te wijzigen. Je kunt hier ook certificaten bekijken, vernieuwen of nieuwe proxy hosts toevoegen.
+Geen inloggegevens nodig — het dashboard staat open (`insecure: true` in traefik.yml), maar is alleen bereikbaar via eth0/wlan0 dankzij nftables.
 
 ### Certificaat vernieuwen
 
-NPM vernieuwt het Let's Encrypt-certificaat automatisch vóór het verloopt (geldigheid: 90 dagen, vernieuwing na ~60 dagen). Handmatig verlengen is niet nodig.
+Traefik vernieuwt het Let's Encrypt-certificaat automatisch vóór het verloopt (geldigheid: 90 dagen, vernieuwing na ~60 dagen). Handmatig verlengen is niet nodig.
 
-### NPM setup herhalen
-
-Als de automatische configuratie tijdens installatie is mislukt (bijv. door een netwerkprobleem), kun je het script handmatig opnieuw uitvoeren:
+### Traefik logs bekijken
 
 ```bash
-sudo /usr/local/bin/npm-setup.sh
-# Log bekijken:
-journalctl -t npm-setup -n 30
+sudo docker logs traefik -f
+# Certificaatstatus, routing, fouten
 ```
-
-Het script is idempotent: als de proxy host al bestaat, doet het niets.
 
 ---
 
@@ -182,6 +172,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | Bestand | Beschrijving |
 |---------|-------------|
 | `C:\Claude\pi-install\install.sh` | Volledig idempotent installatiescript (voor verse Pi) |
+| `C:\Claude\pi-install\fix-wifi.sh` | Wi-Fi stabiliteitsfix: brcmfmac kernelparams + wlan0 power saving uitzetten |
 | `C:\Claude\pi-install\switch-uplink.sh` | Toont uplink-status (carrier, IP, default route) — handmatig wisselen is vervallen |
 | `C:\Claude\pi-install\update-whitelist.sh` | Genereert whitelist.conf, herstart dnsmasq en vult nftsets proactief |
 | `C:\Claude\pi-install\whitelist-sync.sh` | Haalt whitelist.txt van GitHub; past alleen toe bij wijziging (draait via timer) |
@@ -217,8 +208,9 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/usr/local/bin/switch-uplink.sh` | Toont uplink-status (handmatig wisselen is vervallen) |
 | `/usr/local/bin/logging_on.sh` | DNS query-logging inschakelen (schrijft naar /var/log/dnsmasq.log) |
 | `/usr/local/bin/logging_off.sh` | DNS query-logging uitschakelen |
-| `/etc/toetslocker/docker-compose.yml` | Docker Compose: gctoetslocking (poort 8080, host network) + Nginx Proxy Manager |
-| `/boot/firmware/cmdline.txt` | cgroup_memory=1 toegevoegd |
+| `/etc/toetslocker/docker-compose.yml` | Docker Compose: gctoetslocking (poort 80, host network) + Traefik v3 (SSL, dashboard op 8080) |
+| `/boot/firmware/cmdline.txt` | cgroup_memory=1 + brcmfmac.roamoff=1 + brcmfmac.feature_disable=0x282000 toegevoegd |
+| `/etc/systemd/system/wlan0-powersave-off.service` | Zet wlan0 power saving uit bij iedere boot |
 | `/etc/hosts` | 192.168.50.1 toetslocker.lan toetslocker |
 | `/etc/toetslocker.conf` | Actieve configuratie (UPLINK_IFACE, AP_IFACE, AP_IP) |
 
@@ -227,14 +219,15 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ## Werkende services
 
 ```
-hostapd          active + enabled
-dnsmasq          active + enabled
-nftables         active + enabled
-docker           active + enabled
-wlan1-setup      active + enabled
-uplink-monitor   active + enabled
-toetslocker      active + enabled   (pull latest + start npm én gctoetslocking bij opstart)
-whitelist-sync   timer enabled      (boot +2 min, daarna elke 15 min)
+hostapd               active + enabled
+dnsmasq               active + enabled
+nftables              active + enabled
+docker                active + enabled
+wlan1-setup           active + enabled
+uplink-monitor        active + enabled
+toetslocker           active + enabled   (pull latest + start Traefik én gctoetslocking bij opstart)
+whitelist-sync        timer enabled      (boot +2 min, daarna elke 15 min)
+wlan0-powersave-off   active + enabled   (zet Wi-Fi power saving uit op wlan0)
 ```
 
 ---
@@ -404,7 +397,8 @@ sudo grep REFUSED /var/log/dnsmasq.log
 - [ ] HTTPS captive portal pagina bouwen (nu de gctoetslocking-app op poort 80)
 - [x] Logging: standaard UIT; `logging_on.sh` / `logging_off.sh` geïnstalleerd in `/usr/local/bin/`
 - [x] SSH key beheer script klaar (ssh-key-beheer.sh): aanmaken, tonen, verwijderen + automatische GitHub SSH config
-- [x] HTTPS via gctoetslocking.nl: Nginx Proxy Manager + Let's Encrypt (Cloudflare DNS-challenge), volledig geautomatiseerd via install.sh
+- [x] HTTPS via gctoetslocking.nl: Traefik v3 + Let's Encrypt (Cloudflare DNS-01 challenge), volledig geautomatiseerd via install.sh
+- [x] Wi-Fi stabiliteitsfix (wlan0): brcmfmac roaming/features + power saving via fix-wifi.sh (stap 1b)
 
 ---
 
@@ -415,4 +409,4 @@ curl -fsSL https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/
 sudo bash install.sh
 ```
 
-Het script downloadt zelf de hulpscripts (`switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`) en de whitelist van GitHub, detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord, landcode en Cloudflare API-token.
+Het script downloadt zelf de hulpscripts (`switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`, `fix-wifi.sh`) en de whitelist van GitHub, detecteert automatisch de uplink (eth0 of wlan0) en vraagt interactief om SSID, wachtwoord, landcode en Cloudflare API-token.

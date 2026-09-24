@@ -89,6 +89,7 @@ Na bevestiging voert het script de volgende stappen automatisch uit:
 | Stap | Wat er gebeurt |
 |------|----------------|
 | 1 | Benodigde packages installeren (hostapd, dnsmasq, nftables, docker) |
+| 1b | Wi-Fi fix: brcmfmac roaming en feature flags instellen, power saving permanent uitzetten (wlan0) |
 | 2 | hostapd configureren — detecteert automatisch de USB WiFi-adapter en kiest het juiste profiel |
 | 3 | NetworkManager: wlan1 buiten beheer houden |
 | 4 | Statisch IP instellen op wlan1 (192.168.50.1) |
@@ -96,15 +97,15 @@ Na bevestiging voert het script de volgende stappen automatisch uit:
 | 6 | IP-forwarding inschakelen en DNS fixeren op 8.8.8.8 |
 | 7 | nftables firewall instellen (captive portal, whitelist, HTTPS op poort 443) |
 | 8 | Whitelist downloaden van GitHub (itsLearning, Microsoft SSO, Apple/Windows captive portal) |
-| 9 | Docker configureren en docker-compose aanmaken (NPM + gctoetslocking) |
+| 9 | Docker configureren en docker-compose aanmaken (Traefik + gctoetslocking) |
 | 9a | Inloggen bij ghcr.io (GitHub Container Registry) voor de Docker image |
 | 9b | Hulpscripts downloaden: `switch-uplink.sh`, `logging_on.sh`, `logging_off.sh`, `update-whitelist.sh`, `whitelist-sync.sh` |
 | 9c | Uplink-monitor installeren (automatisch wisselen tussen eth0 en wlan0) |
 | 9d | Systemd-service aanmaken die bij elke opstart de nieuwste images ophaalt |
 | 9e | Whitelist-sync timer aanmaken (bij boot + elke 15 min) |
-| 9f | npm-setup.sh aanmaken (configureert Nginx Proxy Manager via API) |
+| 9f | *(vervallen)* — Traefik configureert SSL automatisch via `traefik.yml` |
 | 9g | Docker image cleanup timer aanmaken (wekelijks ongebruikte images verwijderen) |
-| 10 | Services starten, Docker images ophalen, NPM configureren, eindcontrole |
+| 10 | Services starten, Docker images ophalen, eindcontrole |
 
 ### 4. GitHub Container Registry (stap 9a)
 
@@ -117,16 +118,16 @@ Bestaande ghcr.io login gevonden: jouwgebruikersnaam
 Nieuwe credentials invoeren? [j/N]:
 ```
 
-### 5. NPM configuratie (stap 10)
+### 5. Traefik SSL (automatisch)
 
-Na het starten van de containers configureert het script automatisch Nginx Proxy Manager via de API:
+Traefik vraagt bij de eerste start automatisch een Let's Encrypt-certificaat aan via de Cloudflare DNS-01 challenge. Hiervoor is het ingevoerde Cloudflare API-token nodig. Er zijn geen handmatige stappen vereist.
 
-1. Wacht tot de NPM container actief is
-2. Logt in met standaard credentials (`admin@example.com` / `changeme`)
-3. Vraagt een Let's Encrypt-certificaat aan via Cloudflare DNS-challenge
-4. Maakt een proxy host aan: `gctoetslocking.nl` → app op poort 8080
+Voortgang volgen:
+```bash
+sudo docker logs traefik -f
+```
 
-Dit kan enkele minuten duren vanwege DNS-propagatie. Als het mislukt, staat er een melding met instructies om het handmatig opnieuw te proberen.
+Het certificaat is aangevraagd zodra je in de logs `"msg":"Configuration loaded from file"` en het domein `gctoetslocking.nl` ziet verschijnen.
 
 ### 6. Eindcontrole
 
@@ -142,16 +143,16 @@ Na afloop toont het script de status van alle services en een samenvatting:
 [OK] toetslocker actief
 [OK] whitelist-sync.timer actief
 [OK] docker-prune.timer actief
-[OK] npm container actief
+[OK] traefik container actief
 [OK] DNS: gctoetslocking.nl → 192.168.50.1
-[OK] App intern bereikbaar op poort 8080
-[--] HTTPS: certificaat wordt aangevraagd (journalctl -t npm-setup)
+[OK] App intern bereikbaar op poort 80
+[--] HTTPS: certificaat wordt aangevraagd (docker logs traefik)
 
-  Applicatie URL  : https://gctoetslocking.nl
-  NPM admin-UI    : http://192.168.x.x:81  (alleen via beheernetwerk)
+  Applicatie URL      : https://gctoetslocking.nl
+  Traefik dashboard   : http://192.168.x.x:8080  (alleen via beheernetwerk)
 ```
 
-> De HTTPS-melding is normaal — het certificaat wordt op de achtergrond aangevraagd. Controleer de status met `journalctl -t npm-setup -n 20`.
+> De HTTPS-melding is normaal — het certificaat wordt op de achtergrond aangevraagd. Controleer de status met `sudo docker logs traefik -f`.
 
 ---
 
@@ -163,13 +164,11 @@ De webapplicatie is bereikbaar voor verbonden studenten via:
 https://gctoetslocking.nl
 ```
 
-De Nginx Proxy Manager admin-interface is bereikbaar via je beheernetwerk (eth0 of wlan0, **niet** via het studentenwifi):
+Het Traefik-dashboard is bereikbaar via je beheernetwerk (eth0 of wlan0, **niet** via het studentenwifi):
 
 ```
-http://<uplink-ip>:81
+http://<uplink-ip>:8080
 ```
-
-Standaard inloggegevens NPM (eerste keer): `admin@example.com` / `changeme` — NPM vraagt dit direct te wijzigen.
 
 ---
 
@@ -190,9 +189,8 @@ journalctl -u whitelist-sync -n 20
 ## Handige commando's
 
 ```bash
-# NPM setup herhalen (als het tijdens installatie mislukte):
-sudo /usr/local/bin/npm-setup.sh
-journalctl -t npm-setup -n 30
+# Traefik logs bekijken (certificaat aanvraag, fouten):
+sudo docker logs traefik -f
 
 # Uplink status bekijken:
 sudo switch-uplink.sh

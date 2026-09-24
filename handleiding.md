@@ -20,30 +20,26 @@ Het wlan0-IP vind je via: `ip addr show wlan0` (op de Pi) of in de DHCP-lijst va
 
 Verbind met het AP-netwerk van de Pi en ga naar:
 ```
-http://toetslocker.lan
+https://gctoetslocking.nl
 ```
-of direct via IP:
-```
-http://192.168.50.1
-```
+
+> De browser kan bij de eerste keer een certificaatwaarschuwing tonen als Traefik het certificaat nog aanvraagt. Wacht enkele minuten en laad de pagina opnieuw.
 
 ---
 
-## Webapplicatie openen als beheerder (via schoolnetwerk / wlan0)
+## Beheerinterface (Traefik dashboard)
 
-Verbind je laptop met hetzelfde netwerk als de Pi (wlan0), en ga naar het wlan0-IP van de Pi:
+Verbind je laptop met hetzelfde netwerk als de Pi (eth0 of wlan0) en open:
+```
+http://<uplink-ip>:8080
+```
 
 ```bash
-# Wlan0-IP opzoeken op de Pi:
-ip addr show wlan0
+# Uplink-IP opzoeken op de Pi:
+ip addr show wlan0   # of eth0
 ```
 
-Daarna in de browser:
-```
-http://<wlan0-ip>
-```
-
-> `toetslocker.lan` werkt niet via het wlan0-netwerk — dnsmasq luistert alleen op wlan1. Gebruik het IP-adres.
+Het dashboard is alleen bereikbaar via het beheernetwerk — op het studentenwifi (wlan1) is poort 8080 geblokkeerd.
 
 ---
 
@@ -75,6 +71,32 @@ sudo switch-uplink.sh         # toon huidige instelling
 systemctl status uplink-monitor
 journalctl -t uplink-monitor -n 20
 cat /etc/nftables.d/uplink.conf    # toont actieve uplink
+```
+
+---
+
+## Wi-Fi stabiliteit (wlan0)
+
+Bij de installatie wordt `fix-wifi.sh` automatisch uitgevoerd. Dit script verbetert de stabiliteit van de ingebouwde Wi-Fi (wlan0) op de Raspberry Pi 5:
+
+| Maatregel | Beschrijving |
+|-----------|-------------|
+| `brcmfmac.roamoff=1` | Schakelt automatisch roamen uit — voorkomt dat de Pi onnodig van WiFi-netwerk wisselt |
+| `brcmfmac.feature_disable=0x282000` | Schakelt instabiele brcmfmac-features uit |
+| `wlan0-powersave-off.service` | Zet Wi-Fi power saving permanent uit zodat de verbinding niet wegvalt bij inactiviteit |
+
+De kernelparameters in `/boot/firmware/cmdline.txt` zijn actief na een reboot. De service voor power saving wordt direct bij installatie én bij iedere boot toegepast.
+
+**Status controleren:**
+```bash
+iw dev wlan0 get power_save              # moet "Power save: off" tonen
+systemctl status wlan0-powersave-off     # service actief?
+grep brcmfmac /boot/firmware/cmdline.txt # kernelparameters aanwezig?
+```
+
+**Handmatig uitvoeren (bijv. na herinstallatie):**
+```bash
+sudo fix-wifi.sh
 ```
 
 ---
@@ -134,10 +156,10 @@ sudo grep REFUSED /var/log/dnsmasq.log
 ## Services controleren
 
 ```bash
-sudo systemctl is-active hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker
+sudo systemctl is-active hostapd dnsmasq nftables docker wlan1-setup uplink-monitor toetslocker wlan0-powersave-off
 ```
 
-Alle zeven moeten `active` tonen. Bij problemen:
+Alle acht moeten `active` tonen. Bij problemen:
 ```bash
 sudo systemctl status <servicenaam> --no-pager
 ```
@@ -155,6 +177,8 @@ systemctl status toetslocker
 ```
 
 > `docker ps` toont `Up` zonder `(healthy)` — de healthcheck is verwijderd omdat `curl` niet in het .NET image zit. Dit is normaal.
+
+De app luistert op poort **80** (host networking). Traefik termineert HTTPS op poort 443 en proxyt door naar `host.docker.internal:80`.
 
 **Container herstarten:**
 ```bash
