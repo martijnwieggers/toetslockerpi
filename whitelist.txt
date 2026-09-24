@@ -3,6 +3,11 @@
 # Commentaar begint met #
 
 
+# Graafschap College
+graafschapcollege.nl
+app-eu.readspeaker.com
+hippocampus.eu
+
 # itsLearning
 graafschapcollege.itslearning.com
 cdn.itslearning.com
