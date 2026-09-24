@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 28
+# versie 29
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -133,6 +133,22 @@ apt-get install -y -qq \
     curl wget git vim iw net-tools usbutils dnsutils tcpdump conntrack \
     hostapd dnsmasq nftables docker.io docker-compose
 ok "Packages geïnstalleerd"
+
+# =============================================================================
+# STAP 1b: Wi-Fi fix (roaming, feature flags, power saving)
+# =============================================================================
+info "Stap 1b: Wi-Fi fix uitvoeren (brcmfmac + power saving)..."
+_WIFIFIX_URL="https://raw.githubusercontent.com/martijnwieggers/toetslockerpi/main/fix-wifi.sh"
+_WIFIFIX_TMP=$(mktemp)
+if curl -fsSL "$_WIFIFIX_URL" -o "$_WIFIFIX_TMP"; then
+    chmod +x "$_WIFIFIX_TMP"
+    bash "$_WIFIFIX_TMP" || warn "fix-wifi.sh afgesloten met fout — doorgaan met installatie"
+    ok "Wi-Fi fix uitgevoerd"
+else
+    warn "fix-wifi.sh kon niet worden gedownload van GitHub — stap overgeslagen"
+fi
+rm -f "$_WIFIFIX_TMP"
+unset _WIFIFIX_URL _WIFIFIX_TMP
 
 # =============================================================================
 # STAP 2: hostapd
