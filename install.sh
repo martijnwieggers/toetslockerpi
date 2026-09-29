@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 30
+# versie 31
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -512,6 +512,9 @@ cat > /etc/toetslocker/traefik.yml << EOF
 entryPoints:
   websecure:
     address: ":443"
+    transport:
+      respondingTimeouts:
+        idleTimeout: "3600s"
 
 api:
   dashboard: true
@@ -549,9 +552,16 @@ http:
       tls:
         certResolver: cloudflare
 
+  serversTransports:
+    longlived:
+      responseHeaderTimeout: "0s"
+
   services:
     gctoetslocking:
       loadBalancer:
+        serversTransport: longlived
+        responseForwarding:
+          flushInterval: "100ms"
         servers:
           - url: "http://localhost:80"
 EOF
