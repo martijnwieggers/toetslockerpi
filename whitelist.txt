@@ -33,7 +33,10 @@ dns.msftncsi.com
 
 # Apple
 captive.apple.com
+static.ips.apple.com
 www.apple.com
+# APNs push — iOS houdt hier een permanente verbinding open; geblokkeerd = "geen internet"-banner
+push.apple.com
 # iOS captive-detectie fallback-domeinen (iOS kiest willekeurig uit deze pool)
 www.appleiphonecell.com
 www.itools.info
@@ -46,6 +49,14 @@ time-ios.apple.com
 # Apple certificaatcontrole (voorkomt trage TLS-handshakes op iOS)
 ocsp.apple.com
 ocsp2.apple.com
+crl.apple.com
+certs.apple.com
+valid.apple.com
+
+# DigiCert (Apple gebruikt DigiCert voor deel van zijn TLS-certs; iOS valideert hier)
+ocsp.digicert.com
+crl3.digicert.com
+crl4.digicert.com
 
 # Google / Android / ChromeOS
 clients3.google.com
