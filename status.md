@@ -299,6 +299,9 @@ dnsmasq 2.91+ ondersteunt `nftset=/<domain>/4#inet#filter#allowed_ips`. Bij elke
 
 De whitelist wordt alleen herladen tijdens installatie en handmatig via `update-whitelist.sh` (na het bewerken van `/etc/whitelist.txt`). Het script genereert `whitelist.conf`, herstart dnsmasq en lost daarna proactief alle domeinen op via `dig @127.0.0.1`, zodat de nftsets direct gevuld zijn zonder dat clients eerst zelf een DNS-query hoeven te doen. Een uplink-wissel raakt de whitelist niet — de firewall is uplink-onafhankelijk.
 
+### Traefik: host networking vereist voor correcte client-IP detectie
+Traefik draait met `network_mode: host` (net als de app). Hierdoor gaat de verbinding van Traefik naar de app via loopback (`127.0.0.1`). ASP.NET Core vertrouwt loopback standaard als proxy-bron, waardoor `X-Forwarded-For` (met het echte student-IP) wordt verwerkt. Met Traefik in bridge-modus zou de app de Docker bridge-IP zien (`172.x.x.x`) in plaats van het echte student-IP, en zou client-identificatie mislukken. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` is ingesteld in de app-container om de ForwardedHeaders-middleware te activeren.
+
 ### Geen healthcheck in docker-compose.yml
 De `healthcheck` is verwijderd. Het .NET container image bevat geen `curl`, waardoor de healthcheck altijd faalde met `executable file not found` — ook als de app prima draaide. `docker ps` toont de container als `Up` (zonder `(healthy)`). Automatisch herstarten werkt via `restart: unless-stopped`.
 

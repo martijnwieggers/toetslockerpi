@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 29
+# versie 30
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -454,24 +454,19 @@ cat > /etc/toetslocker/docker-compose.yml << 'COMPOSE'
 services:
 
   # Traefik: SSL-terminatie voor gctoetslocking.nl via Cloudflare DNS-01
+  # network_mode: host zodat Traefik via loopback (127.0.0.1) naar de app praat;
+  # de app ziet dan X-Forwarded-For van een trusted loopback proxy → echte client-IP zichtbaar.
   traefik:
     image: traefik:v3
     container_name: traefik
     restart: unless-stopped
-    ports:
-      - "443:443"    # HTTPS
-      - "8080:8080"  # Dashboard (alleen via beheerinterfaces dankzij nftables)
+    network_mode: host
     environment:
       - CF_DNS_API_TOKEN=${CF_API_TOKEN}
-    dns:
-      - 1.1.1.1
-      - 8.8.8.8
     volumes:
       - /etc/toetslocker/traefik.yml:/etc/traefik/traefik.yml:ro
       - /etc/toetslocker/traefik-dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
       - traefik-letsencrypt:/letsencrypt
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   # ToetsLocker app: host networking zodat wlan1-monitoring blijft werken
   # App luistert hardcoded op poort 80 (in applicatiecode).
@@ -491,6 +486,8 @@ services:
       - ForceHttps=false
       - TZ=Europe/Amsterdam
       - DOTNET_RUNNING_IN_CONTAINER=true
+      # Vertrouw X-Forwarded-For van Traefik (loopback proxy) → app ziet echt client-IP
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
     volumes:
       - toetslocking-pi-data:/data
       - /var/run/dbus:/var/run/dbus:ro
@@ -556,7 +553,7 @@ http:
     gctoetslocking:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:80"
+          - url: "http://localhost:80"
 EOF
 ok "Traefik configuratie aangemaakt (/etc/toetslocker/traefik.yml + traefik-dynamic.yml)"
 
