@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 32
+# versie 33
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -548,9 +548,19 @@ http:
       rule: "Host(`gctoetslocking.nl`)"
       entryPoints:
         - websecure
+      middlewares:
+        - set-https-proto
       service: gctoetslocking
       tls:
         certResolver: cloudflare
+
+  middlewares:
+    # Expliciet X-Forwarded-Proto: https meesturen zodat de app
+    # weet dat hij achter HTTPS draait en wss:// genereert voor SignalR
+    set-https-proto:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
 
   serversTransports:
     longlived:
