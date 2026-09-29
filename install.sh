@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 31
+# versie 32
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -554,7 +554,8 @@ http:
 
   serversTransports:
     longlived:
-      responseHeaderTimeout: "0s"
+      forwardingTimeouts:
+        responseHeaderTimeout: "0s"
 
   services:
     gctoetslocking:
