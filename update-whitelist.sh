@@ -20,7 +20,7 @@ echo "Whitelist bijgewerkt: ${COUNT} domein(en) geladen"
 # Wacht tot dnsmasq daadwerkelijk antwoordt (max 10s) — direct na de
 # restart kan het REFUSED teruggeven en dan blijft de refill leeg.
 for _ in $(seq 1 20); do
-    dig +short +time=1 +tries=1 toetslocker.lan @127.0.0.1 > /dev/null 2>&1 && break
+    dig +short +time=1 +tries=1 gctoetslocking.nl @127.0.0.1 > /dev/null 2>&1 && break
     sleep 0.5
 done
 

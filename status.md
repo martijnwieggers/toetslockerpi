@@ -1,5 +1,5 @@
 # ToetsLocker — Projectstatus
-Bijgewerkt: 2026-09-29
+Bijgewerkt: 2026-10-01
 
 ---
 
@@ -211,7 +211,6 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 | `/etc/toetslocker/docker-compose.yml` | Docker Compose: gctoetslocking (poort 80, host network) + Traefik v3 (SSL, dashboard op 8080) |
 | `/boot/firmware/cmdline.txt` | cgroup_memory=1 + brcmfmac.roamoff=1 + brcmfmac.feature_disable=0x282000 toegevoegd |
 | `/etc/systemd/system/wlan0-powersave-off.service` | Zet wlan0 power saving uit bij iedere boot |
-| `/etc/hosts` | 192.168.50.1 toetslocker.lan toetslocker |
 | `/etc/toetslocker.conf` | Actieve configuratie (UPLINK_IFACE, AP_IFACE, AP_IP) |
 
 ---
@@ -305,14 +304,8 @@ Traefik draait met `network_mode: host` (net als de app). Hierdoor gaat de verbi
 ### Geen healthcheck in docker-compose.yml
 De `healthcheck` is verwijderd. Het .NET container image bevat geen `curl`, waardoor de healthcheck altijd faalde met `executable file not found` — ook als de app prima draaide. `docker ps` toont de container als `Up` (zonder `(healthy)`). Automatisch herstarten werkt via `restart: unless-stopped`.
 
-### .lan in plaats van .local
-iOS gebruikt mDNS (Bonjour) voor `.local` domeinen — dat gaat buiten de gewone DNS om. Daardoor werkte `toetslocker.local` niet via dnsmasq. Opgelost met `.lan` + `domain=lan` + `dhcp-option=option:domain-search,lan` in dnsmasq.
-
 ### SSH alleen bereikbaar via wlan0 (standaard)
 Poort 22 stond initieel niet open voor wlan1. Dat betekent: geen SSH via het AP-netwerk, alleen via het uplink-netwerk (wlan0). Opgelost door `iifname "wlan1" tcp dport 22 accept` toe te voegen aan de INPUT-chain in nftables.conf.
-
-### toetslocker.lan werkt niet lokaal op de Pi zelf
-dnsmasq luistert alleen op `wlan1` (`bind-interfaces`), dus de Pi zelf gebruikt dnsmasq niet. `toetslocker.lan` moet daarom in `/etc/hosts` staan. Het installatiescript verwijdert altijd de oude regel en schrijft `192.168.50.1 toetslocker.lan toetslocker` opnieuw.
 
 ---
 
