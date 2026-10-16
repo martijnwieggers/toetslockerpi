@@ -19,8 +19,11 @@ eu1.itslearning.com
 platform.itslearning.com
 
 # Microsoft authenticatie (SSO via itsLearning)
+login.microsoft.com
 login.microsoftonline.com
 login.mso.msidentity.com
+account.microsoft.com
+microsoftonline.com
 aadcdn.msauth.net
 aadcdn.msauthimages.net
 autologon.microsoftazuread-sso.com
