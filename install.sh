@@ -1,5 +1,5 @@
 #!/bin/bash
-# versie 33
+# versie 35
 # Bij curl | bash leest bash het script via stdin; read-prompts lezen dan ook
 # van de pipe i.p.v. het toetsenbord. Oplossing: schrijf het script naar een
 # temp-bestand en herstart met stdin=tty zodat alle read-prompts van het
@@ -169,7 +169,7 @@ ieee80211n=1
 ieee80211ac=1
 wmm_enabled=1
 ht_capab=[HT40+][SHORT-GI-40][DSSS_CCK-40]
-vht_capab=[MAX-MPDU-11454][SHORT-GI-80][RX-STBC-1][HTC-VHT][MAX-A-MPDU-LEN-EXP7]
+vht_capab=[SHORT-GI-80][RX-STBC-1]
 vht_oper_chwidth=1
 vht_oper_centr_freq_seg0_idx=42
 auth_algs=1
@@ -179,6 +179,8 @@ wpa_passphrase=${WIFI_PASS}
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=CCMP
 rsn_pairwise=CCMP
+ieee80211w=0
+okc=0
 country_code=${COUNTRY}
 EOF
 
