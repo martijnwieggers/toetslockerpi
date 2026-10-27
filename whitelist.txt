@@ -21,13 +21,26 @@ platform.itslearning.com
 # Microsoft authenticatie (SSO via itsLearning)
 login.microsoft.com
 login.microsoftonline.com
-login.mso.msidentity.com
-account.microsoft.com
+login.live.com
+login.windows.net
+sts.windows.net
 microsoftonline.com
-aadcdn.msauth.net
-aadcdn.msauthimages.net
-autologon.microsoftazuread-sso.com
+microsoftonline-p.com
+microsoftonline-p.net
+msidentity.com
+# Inlogpagina-assets: zowel msauth.net als msftauth.net in gebruik
+msauth.net
+msftauth.net
+msauthimages.net
+msftauthimages.net
+account.microsoft.com
 mysignins.microsoft.com
+autologon.microsoftazuread-sso.com
+
+# Microsoft certificaatcontrole (OCSP/CRL — anders trage/hangende TLS op Windows)
+oneocsp.microsoft.com
+ocsp.msocsp.com
+crl.microsoft.com
 
 # Microsoft / Windows
 www.msftconnecttest.com
