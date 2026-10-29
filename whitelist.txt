@@ -8,6 +8,25 @@ graafschapcollege.nl
 app-eu.readspeaker.com
 hippocampus.eu
 
+# draw.io
+
+app.diagrams.net
+*.diagrams.net
+*.draw.io
+www.drawio.com
+www.draw.io
+ac.draw.io
+aj.draw.io
+embed.diagrams.net
+viewer.diagrams.net
+convert.diagrams.net
+fonts.googleapis.com
+fonts.gstatic.com
+apis.google.com
+*.googleapis.com
+graph.microsoft.com
+api.github.com
+
 # itsLearning
 graafschapcollege.itslearning.com
 cdn.itslearning.com
