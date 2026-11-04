@@ -68,6 +68,7 @@ crl.microsoft.com
 
 # Office Online (Word/Excel/PowerPoint-viewer, o.a. in itsLearning)
 officeapps.live.com
+onecdn.static.microsoft
 
 # Microsoft / Windows
 www.msftconnecttest.com
