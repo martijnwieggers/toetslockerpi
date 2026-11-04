@@ -66,6 +66,9 @@ oneocsp.microsoft.com
 ocsp.msocsp.com
 crl.microsoft.com
 
+# Office Online (Word/Excel/PowerPoint-viewer, o.a. in itsLearning)
+officeapps.live.com
+
 # Microsoft / Windows
 www.msftconnecttest.com
 www.msftncsi.com
